@@ -1,0 +1,4 @@
+### Jahaka Bay
+
+Pirate ships enter and leave this bay as they come and go from Jahaka Anchorage. The River Tath plunges down multiple waterfalls before spilling into the bay, so mist perpetually drifts out of the river mouth and across the bay. This mist isn't especially heavy but its effect accumulates over distance, so it restricts visibility to a few miles on all but the windiest days. The outline of the coastal mountains can be seen from any distance in the bay, but finer details—something the size of a ship or smaller, for example—can't be discerned from more than 2 or 3 miles distant. Since the bay is about 20 miles wide and 40 miles deep, it's an excellent hiding spot for pirates. Any ship that wanders into the bay without knowing precisely where to look is unlikely to stumble upon Jahaka Anchorage.
+

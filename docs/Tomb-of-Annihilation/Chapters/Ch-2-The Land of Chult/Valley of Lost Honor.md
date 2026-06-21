@@ -1,0 +1,4 @@
+### Valley of Lost Honor
+
+The undead hordes of **Ras Nsi** wiped out a tribe of Chultans in this valley. The bones of the fallen Eshowe are gone, along with everything else—swallowed up by lava pouring out of the volcano west of Hrakhamar. Firenewts have taken over that old dwarven forge in the mountains, and their territorial claim extends the entire length of this valley. Firenewt warriors mounted on giant striders (see *appendix D*) enforce that claim, making the valley very dangerous for interlopers. Tzindelor, the young red dragon inhabiting Wyrmheart Mine, is the only creature whose might and authority the firenewts begrudgingly respect. Tzindelor and the firenewts leave each other alone for now, but both of them covet what the other has: Tzindelor would like to possess Hrakhamar, and the firenewts would profit from controlling the iron resources in Wyrmheart Mine.
+
