@@ -91,7 +91,7 @@ def load_logs() -> list[dict]:
 def ensure_user(db) -> str:
     """Return the user_id for the google_hackathon user, creating it if absent."""
     users = db["users"]
-    existing = users.find_one({"namename": USER_NAME})
+    existing = users.find_one({"username": USER_NAME})
     if existing:
         print(f"[ok] user '{USER_NAME}' already exists (user_id={existing['user_id']})")
         return existing["user_id"]
@@ -100,9 +100,9 @@ def ensure_user(db) -> str:
     users.insert_one(
         {
             "user_id": user_id,
-            "namename": USER_NAME,
+            "username": USER_NAME,
             "email": "",
-            "role": "",
+            "role": "viewer",
             "created_at": datetime.now(timezone.utc),
         }
     )
