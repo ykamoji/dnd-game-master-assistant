@@ -1,8 +1,7 @@
 import os
 import sys
-from typing import Dict, Optional
+from typing import Dict, Literal, Optional
 
-# Add data/ to sys.path if not there so we can import data.loader
 # Since app/tools is inside dnd-game-master-agent, we can add the agent root to sys.path
 agent_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if agent_root not in sys.path:
@@ -10,14 +9,13 @@ if agent_root not in sys.path:
 
 from data.loader import lookup_by_name
 
-def lookup_monster(name: str) -> Optional[Dict]:
-    """Fallback: look up a monster from Open5e data."""
-    return lookup_by_name("monsters", name)
-
-def lookup_spell(name: str) -> Optional[Dict]:
-    """Look up a spell by name from Open5e data."""
-    return lookup_by_name("spells", name)
-
-def lookup_class(name: str) -> Optional[Dict]:
-    """Look up a D&D class by name from Open5e data."""
-    return lookup_by_name("classes", name)
+def lookup_open5e(resource_type: Literal["monsters", "spells", "classes"], name: str) -> Optional[Dict]:
+    """Look up D&D data from Open5e API.
+    
+    Args:
+        resource_type: The type of data to look up. Allowed values: 'monsters', 'spells', 'classes'.
+        name: The name of the resource (e.g., 'Fireball', 'Goblin', 'Wizard').
+    """
+    if resource_type not in ["monsters", "spells", "classes"]:
+        raise ValueError("Invalid resource_type. Must be 'monsters', 'spells', or 'classes'.")
+    return lookup_by_name(resource_type, name)

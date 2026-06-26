@@ -29,7 +29,7 @@ from google.adk.workflow import START, Edge, Workflow, node
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from .tools import roll_dice
+
 
 
 class PlayerInput(BaseModel):
@@ -66,17 +66,6 @@ def orchestrator(ctx: Context, node_input: Any) -> Event:
 
     player_msg = player_msg.strip()
 
-    # Check for a roll command, e.g. "roll d20", "roll 2d6", "roll"
-    match = re.search(r"roll\s+(\d+)?d(\d+)", player_msg.lower())
-    if match:
-        count = int(match.group(1)) if match.group(1) else 1
-        sides = int(match.group(2))
-        return Event(
-            output={"sides": sides, "count": count},
-            actions=EventActions(route="roll"),
-        )
-
-    # Otherwise route to narrative path
     return Event(
         output=player_msg,
         actions=EventActions(
@@ -86,30 +75,11 @@ def orchestrator(ctx: Context, node_input: Any) -> Event:
 
 
 @node
-def dice_roller(ctx: Context, node_input: dict) -> Event:
-    sides = node_input.get("sides", 20)
-    count = node_input.get("count", 1)
-    roll_result = roll_dice(sides=sides, count=count)
-    return Event(
-        output=roll_result["summary"],
-        actions=EventActions(
-            route="narrate", state_delta={"last_roll_result": roll_result}
-        ),
-    )
-
-
-@node
 def prepare_narrator_input(ctx: Context, node_input: str) -> str:
     # Retrieve the state to prepare the prompt for narrator
     last_action = ctx.state.get("last_player_action", "Start the adventure")
-    last_roll = ctx.state.get("last_roll_result")
 
     prompt = f"Player Action: {last_action}\n"
-    if last_roll:
-        prompt += f"Dice Roll Result: {last_roll.get('summary')}\n"
-        # Clear it from state so we don't repeat the roll in future steps
-        ctx.state["last_roll_result"] = None
-
     prompt += "\nNarrate the consequences of this action as the D&D Game Master."
     return prompt
 
@@ -151,13 +121,11 @@ root_agent = Workflow(
     input_schema=PlayerInput,
     edges=[
         (START, orchestrator),
-        Edge(from_node=orchestrator, to_node=dice_roller, route="roll"),
         Edge(
             from_node=orchestrator,
             to_node=prepare_narrator_input,
             route="narrate",
         ),
-        (dice_roller, prepare_narrator_input),
         (prepare_narrator_input, narrator),
         (narrator, ask_player),
         (ask_player, orchestrator),

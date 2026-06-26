@@ -7,32 +7,21 @@ from app.tools import TOOL_FUNCTIONS
 
 router = APIRouter()
 
-class RollRequest(BaseModel):
-    notation: str
-
 class PathsRequest(BaseModel):
     paths: List[str]
 
 class DescriptionRequest(BaseModel):
     description: str
 
-class SummaryRequest(BaseModel):
-    summary: str
-
-class UpdateStateRequest(BaseModel):
-    scene: str
-    description: str
-    metadata: dict
-    initiative: List[str]
-    party: dict
+class UpdateCampaignRequest(BaseModel):
+    campaign_name: str = "tomb-of-annihilation"
+    summary: Optional[str] = None
     progress: Optional[float] = None
-
-class SaveCampaignStateRequest(BaseModel):
-    scene: str
-    description: str
-    metadata: dict
-    initiative: List[str]
-    party: dict
+    scene: Optional[str] = None
+    description: Optional[str] = None
+    metadata: Optional[dict] = None
+    initiative: Optional[List[str]] = None
+    party: Optional[dict] = None
 
 @router.get("/health/db")
 def health_db():
@@ -41,31 +30,26 @@ def health_db():
         return result
     raise HTTPException(status_code=503, detail=result)
 
-@router.get("/party/{campaign_id}")
-def get_party(campaign_id: str):
-    state = TOOL_FUNCTIONS["get_party_state"](campaign_id)
+@router.get("/campaign/{campaign_id}")
+def api_get_campaign(campaign_id: str, include_history: bool = False):
+    state = TOOL_FUNCTIONS["get_campaign"](campaign_id, include_history)
     if not state:
-        raise HTTPException(status_code=404, detail="Campaign not found or empty state")
+        raise HTTPException(status_code=404, detail="Campaign not found")
     return state
 
-@router.post("/tools/update_state")
-def api_update_state(campaign_id: str, req: UpdateStateRequest):
-    return TOOL_FUNCTIONS["update_state"](
+@router.post("/campaign/{campaign_id}/update")
+def api_update_campaign(campaign_id: str, req: UpdateCampaignRequest):
+    return TOOL_FUNCTIONS["update_campaign"](
         campaign_id=campaign_id,
+        campaign_name=req.campaign_name,
+        summary=req.summary,
+        progress=req.progress,
         scene=req.scene,
         description=req.description,
         metadata=req.metadata,
         initiative=req.initiative,
-        party=req.party,
-        progress=req.progress
+        party=req.party
     )
-
-@router.post("/tools/roll_dice")
-def api_roll_dice(req: RollRequest):
-    try:
-        return TOOL_FUNCTIONS["roll_dice"](notation=req.notation)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/tools/fetch_campaign_files")
 def api_fetch_campaign_files(req: PathsRequest):
@@ -78,25 +62,13 @@ def api_lookup_character(name: str):
         raise HTTPException(status_code=404, detail="Character not found")
     return res
 
-@router.get("/tools/lookup_monster/{name}")
-def api_lookup_monster(name: str):
-    res = TOOL_FUNCTIONS["lookup_monster"](name)
+@router.get("/tools/lookup_open5e/{resource_type}/{name}")
+def api_lookup_open5e(resource_type: str, name: str):
+    if resource_type not in ["monsters", "spells", "classes"]:
+        raise HTTPException(status_code=400, detail="Invalid resource_type")
+    res = TOOL_FUNCTIONS["lookup_open5e"](resource_type, name)
     if not res:
-        raise HTTPException(status_code=404, detail="Monster not found")
-    return res
-
-@router.get("/tools/lookup_spell/{name}")
-def api_lookup_spell(name: str):
-    res = TOOL_FUNCTIONS["lookup_spell"](name)
-    if not res:
-        raise HTTPException(status_code=404, detail="Spell not found")
-    return res
-
-@router.get("/tools/lookup_class/{name}")
-def api_lookup_class(name: str):
-    res = TOOL_FUNCTIONS["lookup_class"](name)
-    if not res:
-        raise HTTPException(status_code=404, detail="Class not found")
+        raise HTTPException(status_code=404, detail="Resource not found")
     return res
 
 @router.post("/tools/get_asset_url")
@@ -104,33 +76,4 @@ def api_get_asset_url(req: DescriptionRequest):
     res = TOOL_FUNCTIONS["get_asset_url"](req.description)
     if "error" in res:
         raise HTTPException(status_code=404, detail=res["error"])
-    return res
-
-@router.post("/campaign/{campaign_id}/save")
-def api_save_campaign_state(campaign_id: str, req: SaveCampaignStateRequest):
-    return TOOL_FUNCTIONS["save_campaign_state"](
-        campaign_id=campaign_id,
-        scene=req.scene,
-        description=req.description,
-        metadata=req.metadata,
-        initiative=req.initiative,
-        party=req.party
-    )
-
-@router.get("/campaign/{campaign_id}/load")
-def api_load_campaign_state(campaign_id: str):
-    res = TOOL_FUNCTIONS["load_campaign_state"](campaign_id)
-    if not res:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    return res
-
-@router.post("/campaign/{campaign_id}/summary")
-def api_save_summary(campaign_id: str, req: SummaryRequest):
-    return TOOL_FUNCTIONS["save_summary"](campaign_id, req.summary)
-
-@router.get("/campaign/{campaign_id}/summary")
-def api_get_summary(campaign_id: str):
-    res = TOOL_FUNCTIONS["get_summary"](campaign_id)
-    if not res:
-        raise HTTPException(status_code=404, detail="Summary not found")
     return res

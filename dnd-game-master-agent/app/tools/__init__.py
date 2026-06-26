@@ -2,26 +2,17 @@ from google.adk.tools import FunctionTool
 
 from .assets import get_asset_url
 from .campaign_files import fetch_campaign_files
-from .campaign_state import get_summary, load_campaign_state, save_campaign_state, save_summary
+from .campaign import get_campaign, update_campaign
 from .character_lookup import lookup_character
-from .dice import roll_dice
-from .open5e_lookup import lookup_class, lookup_monster, lookup_spell
-from .party import get_party_state, update_state
+from .open5e_lookup import lookup_open5e
 
 TOOL_FUNCTIONS = {
-    "get_party_state": get_party_state,
-    "update_state": update_state,
-    "roll_dice": roll_dice,
+    "get_campaign": get_campaign,
+    "update_campaign": update_campaign,
     "fetch_campaign_files": fetch_campaign_files,
     "lookup_character": lookup_character,
-    "lookup_monster": lookup_monster,
-    "lookup_spell": lookup_spell,
-    "lookup_class": lookup_class,
+    "lookup_open5e": lookup_open5e,
     "get_asset_url": get_asset_url,
-    "save_campaign_state": save_campaign_state,
-    "load_campaign_state": load_campaign_state,
-    "save_summary": save_summary,
-    "get_summary": get_summary,
 }
 
 # Wrap all functions as ADK FunctionTools for use in the agent graph
