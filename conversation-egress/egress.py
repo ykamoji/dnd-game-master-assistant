@@ -131,14 +131,16 @@ def push_logs(db, documents: list[dict], user_id: str) -> None:
             "cli_agent": doc["cli_agent"],
             "entry_index": doc["entry_index"],
         }
-        # Key fields come from the filter on insert; only set the rest so the
-        # upsert never conflicts and existing documents stay unchanged.
         payload = {k: v for k, v in doc.items() if k not in key}
-        operations.append(UpdateOne(key, {"$setOnInsert": payload}, upsert=True))
+        set_on_insert_payload = {k: v for k, v in payload.items() if k != "completed At"}
+        update_doc = {"$setOnInsert": set_on_insert_payload}
+        if "completed At" in payload:
+            update_doc["$set"] = {"completed At": payload["completed At"]}
+        operations.append(UpdateOne(key, update_doc, upsert=True))
 
     result = logs.bulk_write(operations, ordered=False)
     skipped = len(documents) - result.upserted_count
-    print(f"[ok] added {result.upserted_count} new log documents ({skipped} already present, skipped)")
+    print(f"[ok] added {result.upserted_count} new log documents ({skipped} already present, skipped or updated)")
 
 
 def main() -> int:
