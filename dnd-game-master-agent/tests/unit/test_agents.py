@@ -269,7 +269,7 @@ async def test_output_agent(session_service):
         "npc_result": "",
         "campaign_result": "",
         "last_agent": ["action_executor", "action_checker"],
-        "tools_fired": ["get_campaign"],
+        "tools_fired": ["get_state"],
     }
     await session_service.create_session(
         app_name="app", user_id="test", session_id=session_id, state=initial_state,

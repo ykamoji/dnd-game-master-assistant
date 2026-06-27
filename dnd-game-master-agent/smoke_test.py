@@ -31,20 +31,20 @@ async def run_tests():
     except Exception as e:
         print(f"Lookup Character error: {e}")
         
-    # 3. Open5e Lookups
-    print("\nTesting Open5e lookups...")
+    # 3. Character resource Lookups (Open5e: spells/classes/armor/weapons/magicitems)
+    print("\nTesting character resource lookups...")
     try:
-        spell = TOOL_FUNCTIONS["lookup_open5e"]("spells", "Fireball")
+        spell = TOOL_FUNCTIONS["lookup_character_resource"]("spells", "Fireball")
         if spell:
             print(f"Found spell: {spell.get('name')}")
         else:
             print("Fireball not found.")
-            
-        monster = TOOL_FUNCTIONS["lookup_open5e"]("monsters", "Goblin")
-        if monster:
-            print(f"Found monster: {monster.get('name')}")
+
+        weapon = TOOL_FUNCTIONS["lookup_character_resource"]("weapons", "Longsword")
+        if weapon:
+            print(f"Found weapon: {weapon.get('name')}")
     except Exception as e:
-        print(f"Open5e error: {e}")
+        print(f"Character resource lookup error: {e}")
         
     # 4. Asset URL
     print("\nTesting get_asset_url...")
@@ -106,9 +106,9 @@ async def run_tests():
         res = await client.get("/tools/lookup_character/Acererak")
         print(f"GET /tools/lookup_character/Acererak: {res.status_code}")
         
-        # Lookup Open5e
-        res = await client.get("/tools/lookup_open5e/spells/Fireball")
-        print(f"GET /tools/lookup_open5e/spells/Fireball: {res.status_code}")
+        # Lookup character resource (monsters/spells/classes)
+        res = await client.get("/tools/lookup_character_resource/spells/Fireball")
+        print(f"GET /tools/lookup_character_resource/spells/Fireball: {res.status_code}")
         
     print("\nSmoke tests completed.")
     close_client()

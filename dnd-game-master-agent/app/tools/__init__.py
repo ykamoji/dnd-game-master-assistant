@@ -2,16 +2,17 @@ from google.adk.tools import FunctionTool
 
 from .assets import get_asset_url
 from .campaign_files import fetch_campaign_files
-from .campaign import get_campaign, update_campaign
+from .campaign import get_campaign, get_state, update_campaign
 from .character_lookup import lookup_character
-from .open5e_lookup import lookup_open5e
+from .open5e_lookup import lookup_character_resource
 
 TOOL_FUNCTIONS = {
     "get_campaign": get_campaign,
+    "get_state": get_state,
     "update_campaign": update_campaign,
     "fetch_campaign_files": fetch_campaign_files,
     "lookup_character": lookup_character,
-    "lookup_open5e": lookup_open5e,
+    "lookup_character_resource": lookup_character_resource,
     "get_asset_url": get_asset_url,
 }
 

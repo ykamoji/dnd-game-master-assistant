@@ -9,13 +9,22 @@ if agent_root not in sys.path:
 
 from data.loader import lookup_by_name
 
-def lookup_open5e(resource_type: Literal["monsters", "spells", "classes"], name: str) -> Optional[Dict]:
-    """Look up D&D data from Open5e API.
-    
+def lookup_character_resource(
+    resource_type: Literal["spells", "classes", "armor", "weapons", "magicitems"], name: str
+) -> Optional[Dict]:
+    """Look up a D&D character resource — a spell, class, armor, weapon, or magic item.
+
+    Use this to fetch the rules data behind a character's loadout and abilities
+    (e.g. Fireball's damage, a Wizard's features, Plate armor's AC, a Longsword's
+    damage dice, or a Ring of Protection's effect). Backed by the Open5e dataset.
+
     Args:
-        resource_type: The type of data to look up. Allowed values: 'monsters', 'spells', 'classes'.
-        name: The name of the resource (e.g., 'Fireball', 'Goblin', 'Wizard').
+        resource_type: The kind of resource to look up. Allowed values: 'spells',
+            'classes', 'armor', 'weapons', 'magicitems'.
+        name: The name of the resource (e.g., 'Fireball', 'Wizard', 'Plate',
+            'Longsword', 'Ring of Protection').
     """
-    if resource_type not in ["monsters", "spells", "classes"]:
-        raise ValueError("Invalid resource_type. Must be 'monsters', 'spells', or 'classes'.")
+    allowed = ["spells", "classes", "armor", "weapons", "magicitems"]
+    if resource_type not in allowed:
+        raise ValueError(f"Invalid resource_type. Must be one of: {', '.join(allowed)}.")
     return lookup_by_name(resource_type, name)

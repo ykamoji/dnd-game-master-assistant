@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class CombatEntry(BaseModel):
     """A single line in a combat log (one attack, one spell, etc.)."""
@@ -20,10 +20,20 @@ class CharacterUpdate(BaseModel):
     cleanly through model structured-output, which handles lists of objects more
     reliably than open-ended dictionaries.
     """
+    # `class` is a Python keyword, so the attribute is `class_` with the JSON key
+    # pinned to "class" via alias; populate_by_name lets us also build it as class_=.
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str = Field(description="Character name")
+    role: str = Field(default="", description="The character's party role (e.g., 'Tank', 'Healer', 'Striker', 'Controller')")
+    class_: str = Field(default="", alias="class", description="The character's D&D class (e.g., 'Wizard', 'Fighter', 'Cleric')")
     hp: int = Field(description="Current hit points")
     max_hp: int = Field(description="Maximum hit points")
     conditions: list[str] = Field(default_factory=list, description="Active status conditions")
+    armors: list[str] = Field(default_factory=list, description="Armor equipped/owned AFTER this turn; include only when known/changed, never invent")
+    spells: list[str] = Field(default_factory=list, description="Spells prepared/known AFTER this turn; include only when known/changed, never invent")
+    weapons: list[str] = Field(default_factory=list, description="Weapons carried AFTER this turn; include only when known/changed, never invent")
+    magicitems: list[str] = Field(default_factory=list, description="Magic items possessed AFTER this turn; include only when known/changed, never invent")
 
 class StoryResult(BaseModel):
     """Structured lookup result returned by story_agent to the calling agents.

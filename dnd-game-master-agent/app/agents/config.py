@@ -17,3 +17,9 @@ if USE_LOCAL_LLM:
     )
 else:
     MODEL = _HOSTED_MODEL
+
+from google.genai import types
+
+THINKING_CONFIG = types.GenerateContentConfig(
+    thinking_config=types.ThinkingConfig(thinking_budget=-1, thinking_level=types.ThinkingLevel.HIGH)
+)

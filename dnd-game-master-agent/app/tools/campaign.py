@@ -1,6 +1,6 @@
 import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db import get_campaigns_col
 
@@ -12,6 +12,9 @@ class CampaignMetadata(BaseModel):
     gm_notes: Optional[str] = Field(default=None, description="Private GM notes for the current scene (key NPCs, threats, opportunities)")
     next_scene_suggestions: List[str] = Field(default_factory=list, description="Suggested next scenes or story directions")
     suggested_actions: List[str] = Field(default_factory=list, description="Suggested next actions offered to the player")
+    combat_log: List[Dict] = Field(default_factory=list, description="Combat log entries from this turn ({action, target, roll, result})")
+    math_breakdown: Optional[str] = Field(default=None, description="Explicit dice math for this turn's action resolution")
+    requires_roll: bool = Field(default=False, description="Whether the next suggested action likely needs a dice roll")
 
 class DialogueLine(BaseModel):
     """A single line of NPC dialogue persisted with the turn snapshot."""
@@ -21,9 +24,18 @@ class DialogueLine(BaseModel):
 
 class CharacterState(BaseModel):
     """State of a single character in the party."""
+    # `class` is reserved; attribute is `class_`, JSON/Mongo key pinned to "class".
+    model_config = ConfigDict(populate_by_name=True)
+
+    role: str = Field(default="", description="The character's party role (e.g., 'Tank', 'Healer', 'Striker', 'Controller')")
+    class_: str = Field(default="", alias="class", description="The character's D&D class (e.g., 'Wizard', 'Fighter', 'Cleric')")
     hp: int = Field(description="Current hit points")
     max_hp: int = Field(description="Maximum hit points")
     conditions: List[str] = Field(default_factory=list, description="List of current status conditions")
+    armors: List[str] = Field(default_factory=list, description="Armor the character currently has equipped/owned")
+    spells: List[str] = Field(default_factory=list, description="Spells the character currently has prepared/known")
+    weapons: List[str] = Field(default_factory=list, description="Weapons the character currently carries")
+    magicitems: List[str] = Field(default_factory=list, description="Magic items the character currently possesses")
 
 class PartyState(BaseModel):
     """The state of the entire party."""
@@ -50,7 +62,65 @@ def get_campaign(campaign_id: str, include_history: bool = False) -> Optional[Di
     if not include_history and "state" in campaign and campaign["state"]:
         # Only keep the latest state turn
         campaign["state"] = [campaign["state"][-1]]
-        
+
+    return campaign
+
+def get_state(campaign_id: str) -> Optional[Dict]:
+    """Fetch the latest turn state for the action agent, with party + combat_log guaranteed.
+
+    Returns the campaign doc trimmed to a SINGLE snapshot: the latest turn (so the
+    current chapter, scene, location, and description are preserved). However, the
+    latest turn may not restate the party or this-turn combat_log (e.g. it was an
+    NPC/CAMPAIGN turn). To make sure the action agent always sees the live combat
+    context, this back-fills the most recent non-empty `party` and `metadata.combat_log`
+    from earlier snapshots and injects them into the returned snapshot's `metadata`
+    (`metadata["party"]`, `metadata["combat_log"]`).
+
+    Args:
+        campaign_id: The ID of the campaign.
+
+    Returns:
+        The campaign doc with `state` set to one back-filled snapshot, or None if the
+        campaign does not exist. If there are no snapshots yet, the doc is returned as-is.
+    """
+    col = get_campaigns_col()
+    campaign = col.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not campaign:
+        return None
+
+    states = campaign.get("state") or []
+    if not states:
+        return campaign
+
+    # Latest snapshot — keeps current chapter/scene/location/description.
+    latest = dict(states[-1])
+    metadata = dict(latest.get("metadata") or {})
+
+    # Back-fill party: prefer the latest snapshot's own, else the most recent that has one.
+    party = latest.get("party")
+    if not party:
+        for snap in reversed(states):
+            if snap.get("party"):
+                party = snap["party"]
+                break
+
+    # Back-fill combat_log (lives in metadata): latest's own, else most recent non-empty.
+    combat_log = metadata.get("combat_log")
+    if not combat_log:
+        for snap in reversed(states):
+            snap_combat = (snap.get("metadata") or {}).get("combat_log")
+            if snap_combat:
+                combat_log = snap_combat
+                break
+
+    # Inject the recovered live combat context into the returned snapshot's metadata.
+    if party:
+        metadata["party"] = party
+    if combat_log:
+        metadata["combat_log"] = combat_log
+    latest["metadata"] = metadata
+
+    campaign["state"] = [latest]
     return campaign
 
 def update_campaign(
@@ -66,6 +136,7 @@ def update_campaign(
     npc_name: Optional[str] = None,
     narrative: Optional[str] = None,
     dialogue: Optional[List[DialogueLine]] = None,
+    intent: Optional[str] = None,
 ) -> Dict:
     """Update campaign properties or append a new turn state to the campaign.
 
@@ -83,6 +154,7 @@ def update_campaign(
         npc_name: Name of the NPC speaking this turn (for NPC_DIALOGUE turns).
         narrative: The turn's player-facing narrative text.
         dialogue: Ordered NPC dialogue lines (speaker, text, emotion) for this turn.
+        intent: The resolved intent for this turn (ACTION | NPC_DIALOGUE | CAMPAIGN).
 
     Returns:
         The updated campaign document.
@@ -111,7 +183,7 @@ def update_campaign(
     # not supplied this turn are carried forward from the latest stored snapshot,
     # so a partial update (e.g. only party HP) never blanks out the scene,
     # initiative, or other fields that simply didn't change.
-    snapshot_fields = [scene, description, metadata, initiative, party, npc_name, narrative, dialogue]
+    snapshot_fields = [scene, description, metadata, initiative, party, npc_name, narrative, dialogue, intent]
     if any(x is not None for x in snapshot_fields):
         existing = col.find_one(
             {"campaign_id": campaign_id}, {"_id": 0, "state": {"$slice": -1}}
@@ -120,7 +192,9 @@ def update_campaign(
         last = prior_state[-1] if prior_state else {}
 
         def _dump(value):
-            return value.model_dump() if hasattr(value, "model_dump") else value
+            # by_alias keeps reserved-word fields (e.g. CharacterState.class_) stored
+            # under their real JSON key ("class"); harmless for models without aliases.
+            return value.model_dump(by_alias=True) if hasattr(value, "model_dump") else value
 
         new_snapshot = {
             "scene": scene if scene is not None else last.get("scene"),
@@ -131,6 +205,7 @@ def update_campaign(
             "npc_name": npc_name if npc_name is not None else last.get("npc_name"),
             "narrative": narrative if narrative is not None else last.get("narrative"),
             "dialogue": [_dump(d) for d in dialogue] if dialogue is not None else last.get("dialogue"),
+            "intent": intent if intent is not None else last.get("intent"),
             "created_dt": now
         }
         update_ops["$push"] = {"state": new_snapshot}

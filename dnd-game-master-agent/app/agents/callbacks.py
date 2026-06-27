@@ -188,7 +188,9 @@ def validate_draft(raw: object, schema) -> tuple[Optional[str], str]:
         )
         return None, f"Output did not match the {schema.__name__} schema: {problems}"
 
-    return model.model_dump_json(), ""
+    # by_alias keeps reserved-word fields (e.g. CharacterUpdate.class_) serialized
+    # under their real JSON key ("class") for the downstream output_agent.
+    return model.model_dump_json(by_alias=True), ""
 
 
 def _build_party_state(party_list: list, PartyState, CharacterState):
@@ -205,9 +207,15 @@ def _build_party_state(party_list: list, PartyState, CharacterState):
     for entry in party_list:
         try:
             characters[entry["name"]] = CharacterState(
+                role=entry.get("role", ""),
+                class_=entry.get("class", ""),
                 hp=entry["hp"],
                 max_hp=entry["max_hp"],
                 conditions=entry.get("conditions", []),
+                armors=entry.get("armors", []),
+                spells=entry.get("spells", []),
+                weapons=entry.get("weapons", []),
+                magicitems=entry.get("magicitems", []),
             )
         except (KeyError, TypeError, ValueError):
             logger.warning(
@@ -284,6 +292,10 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
     gm_notes = resp.get("gm_notes") or None
     next_scene_suggestions = resp.get("next_scene_suggestions") or []
     suggested_actions = resp.get("suggested_actions") or []
+    # ACTION combat detail also persists into scene metadata for a durable history.
+    combat_log = resp.get("combat_log") or []
+    math_breakdown = resp.get("math_breakdown") or None
+    requires_roll = bool(resp.get("requires_roll"))
     metadata = CampaignMetadata(
         chapter=chapter,
         section=section,
@@ -291,7 +303,11 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
         gm_notes=gm_notes,
         next_scene_suggestions=next_scene_suggestions,
         suggested_actions=suggested_actions,
-    ) if (chapter or section or asset_urls or gm_notes or next_scene_suggestions or suggested_actions) else None
+        combat_log=combat_log,
+        math_breakdown=math_breakdown,
+        requires_roll=requires_roll,
+    ) if (chapter or section or asset_urls or gm_notes or next_scene_suggestions
+          or suggested_actions or combat_log or math_breakdown or requires_roll) else None
 
     # initiative: empty list means "unchanged" -> pass None so the tool carries
     # the previous order forward instead of clobbering it.
@@ -304,6 +320,9 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
     npc_name = resp.get("npc_name") or None
     narrative = resp.get("narrative") or None
     dialogue = _build_dialogue(resp.get("dialogue") or [], DialogueLine)
+
+    # intent: prefer the workflow's resolved state value, fall back to the response.
+    intent = callback_context.state.get("intent") or resp.get("intent") or None
 
     try:
         update_campaign(
@@ -318,6 +337,7 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
             npc_name=npc_name,
             narrative=narrative,
             dialogue=dialogue,
+            intent=intent,
         )
     except Exception:  # pragma: no cover - persistence must never break the turn
         logger.exception("persist_campaign_callback: update_campaign failed")

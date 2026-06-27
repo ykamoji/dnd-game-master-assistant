@@ -37,6 +37,13 @@ def api_get_campaign(campaign_id: str, include_history: bool = False):
         raise HTTPException(status_code=404, detail="Campaign not found")
     return state
 
+@router.get("/state/{campaign_id}")
+def api_get_state(campaign_id: str):
+    state = TOOL_FUNCTIONS["get_state"](campaign_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return state
+
 @router.post("/campaign/{campaign_id}/update")
 def api_update_campaign(campaign_id: str, req: UpdateCampaignRequest):
     return TOOL_FUNCTIONS["update_campaign"](
@@ -62,11 +69,11 @@ def api_lookup_character(name: str):
         raise HTTPException(status_code=404, detail="Character not found")
     return res
 
-@router.get("/tools/lookup_open5e/{resource_type}/{name}")
-def api_lookup_open5e(resource_type: str, name: str):
-    if resource_type not in ["monsters", "spells", "classes"]:
+@router.get("/tools/lookup_character_resource/{resource_type}/{name}")
+def api_lookup_character_resource(resource_type: str, name: str):
+    if resource_type not in ["monsters", "spells", "classes", "armor", "weapons", "magicitems"]:
         raise HTTPException(status_code=400, detail="Invalid resource_type")
-    res = TOOL_FUNCTIONS["lookup_open5e"](resource_type, name)
+    res = TOOL_FUNCTIONS["lookup_character_resource"](resource_type, name)
     if not res:
         raise HTTPException(status_code=404, detail="Resource not found")
     return res
