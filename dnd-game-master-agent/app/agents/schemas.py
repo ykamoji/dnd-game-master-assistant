@@ -50,6 +50,20 @@ class StoryResult(BaseModel):
     asset_urls: list[str] = Field(default_factory=list, description="Full image URLs (Base URL + File) for every matching scene/NPC/map image, or empty if none")
 
 
+class SetupResult(BaseModel):
+    """Structured output of the setup_executor (first-turn campaign/party init).
+
+    Produced once, before the game loop starts. The setup_executor parses the
+    campaign name and party from the player's opening message and derives each
+    member's starting HP / loadout from their class. `ready` gates persistence:
+    when False the turn is rejected and the player is told what's missing.
+    """
+    campaign_name: str = Field(default="", description="Campaign/adventure name from the player's message")
+    ready: bool = Field(default=False, description="True ONLY when a campaign name AND every party member's name, role, and class are present")
+    message: str = Field(default="", description="If not ready: exactly what the player must still provide. If ready: a short confirmation that the adventure can begin")
+    party: list[CharacterUpdate] = Field(default_factory=list, description="One entry per party member with class-derived hp = max_hp, weapons, and armors; empty when not ready")
+
+
 class ActionResult(BaseModel):
     """Structured output of the action_executor (combat & rules resolution)."""
     narrative: str = Field(description="Vivid description of what happened when the action resolved")

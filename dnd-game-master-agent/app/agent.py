@@ -19,6 +19,8 @@ The pipeline is a directed graph (not a SequentialAgent):
     START
       → prepare            (init turn state + input guardrail)
           ├─ "blocked" → refuse                      (END)
+          ├─ "setup"   → setup_agent → setup_finalize (END)
+          │              (first turn only: build campaign + party skeleton)
           └─ "safe"    → classify  (intent classifier LLM)
                           → route_intent
                               ├─ "ACTION"       → action_agent ┐
@@ -49,10 +51,16 @@ from google.adk.workflow import Workflow, node
 from google.genai import types
 import json
 
-from app.tools.campaign import get_campaign
+from app.tools.campaign import (
+    CharacterState,
+    PartyState,
+    get_campaign,
+    update_campaign,
+)
 
-from app.agents.callbacks import evaluate_input_safety
+from app.agents.callbacks import _build_party_state, evaluate_input_safety
 from app.agents.supervisor_agent import classifier
+from app.agents.setup_agent import setup_agent
 from app.agents.action_agent import action_agent
 from app.agents.npc_dialogue_agent import npc_dialogue_agent
 from app.agents.campaign_agent import campaign_agent
@@ -98,9 +106,19 @@ def prepare(ctx: Context, node_input: Any) -> Event:
     campaign_data = get_campaign(campaign_id, include_history=False)
     campaign_state = json.dumps(campaign_data, default=str) if campaign_data else "No campaign data found."
 
+    # First invocation of a campaign: no skeleton/party persisted yet. Route to the
+    # one-time setup agent so the campaign + party are created before the game loop.
+    needs_setup = campaign_data is None or not campaign_data.get("state")
+    if not is_safe:
+        route = "blocked"
+    elif needs_setup:
+        route = "setup"
+    else:
+        route = "safe"
+
     return Event(
         output=text,
-        route="safe" if is_safe else "blocked",
+        route=route,
         state={
             "turn_count": turn,
             "last_agent": [],
@@ -118,6 +136,7 @@ def prepare(ctx: Context, node_input: Any) -> Event:
             "action_result": "",
             "npc_result": "",
             "campaign_result": "",
+            "setup_result": "",
         },
     )
 
@@ -131,6 +150,64 @@ def refuse(ctx: Context, node_input: Any) -> Event:
         content=types.Content(role="model", parts=[types.Part.from_text(text=message)]),
         output=message,
         state={"gm_response": message},
+    )
+
+
+def setup_finalize(ctx: Context, node_input: Any) -> Event:
+    """Terminal node for the setup turn.
+
+    Reads the validated SetupResult from state. If setup isn't ready (missing
+    campaign name or party details), it emits the required-details ask and persists
+    nothing. Otherwise it deterministically writes the skeleton campaign (campaign
+    name + a single state snapshot with the party) via update_campaign — never
+    relying on the model to emit the nested tool call itself.
+    """
+    raw = ctx.state.get("setup_result", "")
+    result = {}
+    if raw:
+        try:
+            result = raw if isinstance(raw, dict) else json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            result = {}
+
+    ready = bool(result.get("ready"))
+    message = result.get("message") or (
+        "Before we start the adventure I need a campaign name and, for each party "
+        "member, a name, a role, and a class."
+    )
+
+    if not ready:
+        # Missing details — reject the turn without creating a campaign.
+        return Event(
+            content=types.Content(role="model", parts=[types.Part.from_text(text=message)]),
+            output=message,
+            state={"gm_response": message},
+        )
+
+    campaign_id = ctx.state.get("campaign_id", "default-campaign")
+    campaign_name = result.get("campaign_name") or "tomb-of-annihilation"
+    # The party starts at full health: pin hp to max_hp regardless of what the model emitted.
+    members = result.get("party") or []
+    for m in members:
+        if isinstance(m, dict) and m.get("max_hp") is not None:
+            m["hp"] = m["max_hp"]
+    party = _build_party_state(members, PartyState, CharacterState)
+
+    update_campaign(
+        campaign_id=campaign_id,
+        campaign_name=campaign_name,
+        party=party,
+        intent="SETUP",
+    )
+
+    fired = list(ctx.state.get("tools_fired", []))
+    fired.append("update_campaign")
+
+    confirmation = message or "Your party is ready — hope you brought enough body bags for the jungle !!!"
+    return Event(
+        content=types.Content(role="model", parts=[types.Part.from_text(text=confirmation)]),
+        output=confirmation,
+        state={"gm_response": confirmation, "tools_fired": fired},
     )
 
 
@@ -201,7 +278,8 @@ root_agent = Workflow(
     name="dnd_game_master",
     edges=[
         ("START", prepare),
-        (prepare, {"safe": classifier, "blocked": refuse}),
+        (prepare, {"safe": classifier, "blocked": refuse, "setup": setup_agent}),
+        (setup_agent, setup_finalize),  # terminal — the setup turn ends here
         (classifier, route_intent),
         (route_intent, {
             "ACTION": action_agent,

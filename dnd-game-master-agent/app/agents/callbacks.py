@@ -3,8 +3,6 @@ import logging
 import re
 from typing import Optional
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.models.llm_request import LlmRequest
-from google.adk.models.llm_response import LlmResponse
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
 from pydantic import ValidationError
@@ -58,51 +56,6 @@ def evaluate_input_safety(text: str) -> tuple[bool, str, str]:
     return True, "", ""
 
 
-async def guardrail_callback(
-    callback_context: CallbackContext, llm_request: LlmRequest
-) -> Optional[LlmResponse]:
-    """Before-model callback: short-circuits with a safe refusal if input is unsafe."""
-    user_text = ""
-    if llm_request.contents:
-        for content in reversed(llm_request.contents):
-            if content.role == "user" and content.parts:
-                user_text = " ".join(
-                    p.text for p in content.parts if hasattr(p, "text") and p.text
-                )
-                break
-
-    is_safe, reason, refusal = evaluate_input_safety(user_text)
-    callback_context.state["is_safe"] = is_safe
-    callback_context.state["rejection_reason"] = reason
-    if not is_safe:
-        return LlmResponse(
-            content=types.Content(
-                role="model",
-                parts=[types.Part.from_text(text=refusal)],
-            )
-        )
-    return None
-
-async def init_turn_state(callback_context: CallbackContext) -> None:
-    """Initialize clean state at the start of every supervisor invocation."""
-    callback_context.state["last_agent"] = []
-    callback_context.state["tools_fired"] = []
-    callback_context.state["intent"] = ""
-    callback_context.state["eval_feedback"] = ""
-    callback_context.state["player_rejected"] = False
-    if "campaign_id" not in callback_context.state:
-        callback_context.state["campaign_id"] = "default-campaign"
-
-    # Capture the player's message so the specialist instruction templates can
-    # resolve {last_player_action}. Without this the very first delegation fails
-    # with `KeyError: Context variable not found: last_player_action`.
-    player_text = ""
-    user_content = callback_context.user_content
-    if user_content and user_content.parts:
-        player_text = " ".join(
-            p.text for p in user_content.parts if getattr(p, "text", None)
-        ).strip()
-    callback_context.state["last_player_action"] = player_text
 
 def make_track_agent_callback(agent_name: str):
     """Factory: creates a before_agent_callback that tracks agent name and resets tools."""

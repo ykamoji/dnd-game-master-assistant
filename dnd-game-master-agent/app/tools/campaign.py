@@ -169,6 +169,7 @@ def update_campaign(
         "$setOnInsert": {
             "campaign_id": campaign_id,
             "campaign_name": campaign_name,
+            "created_at": now,
         }
     }
     

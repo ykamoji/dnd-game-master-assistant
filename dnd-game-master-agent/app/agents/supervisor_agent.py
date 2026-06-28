@@ -1,50 +1,8 @@
 from google.adk.agents import Agent
-
 from app.agents.config import MODEL, THINKING_CONFIG
-from app.agents.callbacks import guardrail_callback, init_turn_state, track_tool_callback
-from app.agents.action_agent import action_agent
-from app.agents.npc_dialogue_agent import npc_dialogue_agent
-from app.agents.campaign_agent import campaign_agent
 
-supervisor = Agent(
-    name="supervisor",
-    model=MODEL,
-    generate_content_config=THINKING_CONFIG,
-    include_contents="none",
-    instruction="""You are the D&D Game Master Supervisor. Your ONLY job is to 
-    classify the player's input and delegate to the right specialist agent.
-
-    Read the player's message and decide:
-
-    - **ACTION** — Combat, skill checks, movement, using items, casting spells,
-      any action that changes game state.
-      → Delegate to **action_agent**
-
-    - **NPC_DIALOGUE** — Talking to NPCs, asking NPCs questions, social 
-      interactions, persuasion, intimidation involving an NPC.
-      → Delegate to **npc_dialogue_agent**
-
-    - **CAMPAIGN** — Asking about the current scene, requesting a summary,
-      asking what's next, checking party status, GM notes, world-building questions.
-      → Delegate to **campaign_agent**
-
-    Current campaign_id: {campaign_id}
-
-    HOW TO DELEGATE: you MUST hand off by actually transferring control to the chosen
-    specialist agent (action_agent, npc_dialogue_agent, or campaign_agent) — that is,
-    invoke the agent. Do NOT answer the player yourself, and do NOT just write a
-    sentence saying which agent you picked; naming the agent in text is NOT a
-    delegation. Every message ends with a transfer to exactly one specialist.""",
-    sub_agents=[action_agent, npc_dialogue_agent, campaign_agent],
-    before_model_callback=guardrail_callback,
-    before_agent_callback=init_turn_state,
-    after_tool_callback=track_tool_callback,
-)
-
-
-# Intent classifier for the graph workflow. Unlike `supervisor` it does NOT
-# auto-delegate (the graph routes on its label) — it only emits the intent so a
-# routing node can pick the right specialist branch.
+# Intent classifier for the graph workflow. Auto-delegate (the graph routes on its label).
+# It only emits the intent so a routing node can pick the right specialist branch.
 classifier = Agent(
     name="intent_classifier",
     model=MODEL,
