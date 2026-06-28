@@ -42,10 +42,10 @@ setup_executor = Agent(
     model=MODEL,
     generate_content_config=THINKING_CONFIG,
     include_contents="none",
-    instruction="""You are the Session Zero Coordinator. Before the adventure can
-    begin, you set up the campaign and the party from the player's opening message.
-    You do NOT play the game, narrate scenes, or resolve actions — you only prepare
-    the roster.
+    instruction="""You are the Session Zero Coordinator. 
+    
+    Before the adventure can begin, you set up the campaign and the party from the player's opening message. 
+    You do NOT play the game, narrate scenes, or resolve actions — you only prepare the roster.
 
     Player's message: {last_player_action}
     Existing campaign state (should be empty on a fresh campaign): {campaign_state}
@@ -63,9 +63,10 @@ setup_executor = Agent(
        in "message" exactly what is still needed — e.g. "Before we start the
        adventure I need a campaign name and, for each party member, a name, a role,
        and a class." Do NOT call any tools in this case.
-    3. Otherwise, for EACH party member, call lookup_character_resource with
-       resource_type "classes" and the member's class to get the class data. From
-       that data:
+    3. Otherwise, you MUST look up the class data for EVERY party member simultaneously. 
+       Issue all necessary tool calls to lookup_character_resource in a single, parallel 
+       batch (one tool call per party member). Do not look them up one by one. Once all 
+       parallel tool results are returned, use the data to:
          - Set max_hp to the leading whole number of "hp_at_1st_level" (e.g.
            "10 + your Constitution modifier" -> 10), and set hp = max_hp (the party
            starts at full health).
@@ -75,11 +76,9 @@ setup_executor = Agent(
          - Set "conditions": [].
        Then set "ready": true and a short "message" confirming the party is ready.
 
-    MANDATORY TOOL USE: You do NOT know a class's HP or proficiencies until
-    lookup_character_resource ACTUALLY returns them. NEVER simulate, assume, or
-    imagine a tool result. Issue the real tool call and wait for its response before
-    filling hp/max_hp/weapons/armors. If the lookup returns nothing for a class, set
-    "ready": false and say which class could not be found in "message".
+    MANDATORY TOOL USE: You do NOT know a class's HP or proficiencies until lookup_character_resource ACTUALLY returns them. 
+    NEVER simulate, assume, or imagine a tool result. Issue the real tool call and wait for its response before filling hp/max_hp/weapons/armors. 
+    If the lookup returns nothing for a class, set "ready": false and say which class could not be found in "message".
 
     Return a single JSON object matching this schema (no prose outside the JSON):
     {
@@ -89,8 +88,7 @@ setup_executor = Agent(
       "party": [{"name": "...", "role": "...", "class": "...", "hp": 0, "max_hp": 0, "conditions": [], "armors": ["..."], "spells": [], "weapons": ["..."], "magicitems": []}]
     }
 
-    CRITICAL: ALWAYS return the JSON object and nothing else — no prose before or
-    after it.""",
+    CRITICAL: ALWAYS return the JSON object and nothing else — no prose before or after it.""",
     tools=[
         FunctionTool(lookup_character_resource),
     ],
@@ -101,7 +99,7 @@ setup_executor = Agent(
 )
 
 
-class SetupChecker(BaseAgent):
+class SetupEvaluator(BaseAgent):
     """Evaluator for SetupAgent output."""
 
     async def _run_async_impl(
@@ -144,7 +142,7 @@ class SetupChecker(BaseAgent):
             )
 
 
-setup_checker = SetupChecker(name="setup_checker")
+setup_checker = SetupEvaluator(name="setup_checker")
 
 setup_agent = LoopAgent(
     name="setup_agent",

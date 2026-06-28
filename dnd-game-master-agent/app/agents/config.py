@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Hosted default (unchanged behavior)
 _HOSTED_MODEL = "gemma-4-31b-it" # "gemini-3.1-flash-lite" "gemma-4-26b-a4b-it"
@@ -21,5 +23,5 @@ else:
 from google.genai import types
 
 THINKING_CONFIG = types.GenerateContentConfig(
-    thinking_config=types.ThinkingConfig(thinking_budget=-1, thinking_level=types.ThinkingLevel.HIGH)
+    thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.HIGH)
 )

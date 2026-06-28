@@ -35,6 +35,9 @@ lint-fix:
 playground:
 	agents-cli playground
 
+local:
+	uv run python app/fast_api_app.py
+
 run:
 	@if [ -z "$(PROMPT)" ]; then \
 		echo "Error: Please specify PROMPT. Example: make run PROMPT=\"start adventure\""; \

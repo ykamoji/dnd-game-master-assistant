@@ -14,15 +14,14 @@ from app.agents.callbacks import (
 from app.agents.schemas import CampaignResult
 from app.agents.story_agent import story_tool
 from app.tools.campaign import get_campaign
+from app.agents.evaluator_judge import evaluate_draft_semantically
 
 campaign_executor = Agent(
     name="campaign_executor",
     model=MODEL,
     generate_content_config=THINKING_CONFIG,
     include_contents="none",
-    instruction="""You are the Lorekeeper & Scene Director — the keeper of the
-    Tomb-of-Annihilation world state who frames each scene for the table and points
-    the players toward what comes next.
+    instruction="""You are the Lorekeeper & Scene Director — the keeper of the Tomb-of-Annihilation world state who frames each scene for the table and points the players toward what comes next.
 
     Latest Campaign State:
     {campaign_state}
@@ -32,16 +31,14 @@ campaign_executor = Agent(
     Previous feedback (if retrying — fix exactly this): {eval_feedback}
 
     Procedure:
-    1. Call get_campaign (use the Campaign ID above) to load the saved scene, progress,
-       party, and initiative.
-    2. Call story_agent to pull the relevant chapter/scene content and its asset URL.
-       Ask ONLY about game lore using location / NPC / chapter / scene NAMES (e.g.
-       "the arrival scene in Port Nyanzaru"). NEVER pass the Campaign ID, session ID,
-       or player state — story_agent only knows module content and cannot resolve IDs.
-    3. Build the scene framing from what get_campaign and story_agent returned. Take
-       chapter, section, and asset URLs from story_agent's result — do not invent them.
+    1. Call get_campaign (use the Campaign ID above) to load the saved scene, progress, party, and initiative.
+    2. Call story_agent to pull the relevant chapter/scene content and its asset URL. Ask ONLY about game lore using location / NPC / chapter / scene NAMES (e.g. "the arrival scene in Port Nyanzaru").
+       NEVER pass the Campaign ID, session ID, or player state — story_agent only knows module content and cannot resolve IDs.
+    3. Call `get_campaign` and `story_agent` simultaneously. Issue both tool calls in a single, parallel batch. Do not look them up one by one.
+    4. Once all parallel tool results are returned, build the scene framing from what get_campaign and story_agent returned. 
+       Take chapter, section, and asset URLs from story_agent's result — do not invent them.
 
-    Return a single JSON object matching this schema (no prose outside the JSON):
+    Return a single JSON object matching this sample schema (no prose outside the JSON):
     {
       "narrative": "player-facing description of the current scene",
       "chapter": "from story_agent",
@@ -50,26 +47,21 @@ campaign_executor = Agent(
       "gm_notes": "key NPCs present, threats, opportunities",
       "next_scene_suggestions": ["...", "...", "..."],
       "asset_urls": ["from story_agent"],
-      "progress": null,
+      "progress": 1.2,
       "initiative": [],
       "party": [],
       "suggested_actions": ["...", "...", "..."]
     }
 
-    Set `progress`, `initiative`, and `party` ONLY when this turn actually changed
-    them; otherwise leave them null/empty so saved state is preserved. Never invent
-    hp/max_hp. Be concise but vivid; include asset URLs when story_agent provides them.
+    Set `progress` value based on the chapter progression and scene (total 5 chapters). 
+    Set `progress`, `initiative`, and `party` ONLY when this turn actually changed them; otherwise leave them 0, null, and empty, respectively so saved state is preserved.
+    Never invent hp/max_hp. Be concise but vivid; include asset URLs when story_agent provides them.
 
-    MANDATORY TOOL USE: You do NOT know the saved state or scene content until the
-    tool ACTUALLY returns it. NEVER simulate, assume, pretend, or imagine a tool
-    result — phrases like "(simulated)" or "assuming this returns…" are forbidden.
-    Issue the real get_campaign and story_agent calls and wait for their responses
-    before framing the scene. Take chapter/section/asset URLs from story_agent's real
-    output; if it returns nothing, say so in `narrative` instead of inventing lore.
+    MANDATORY TOOL USE: You do NOT know the saved state or scene content until the tool ACTUALLY returns it. NEVER simulate, assume, pretend, or imagine a tool result — phrases like "(simulated)" or "assuming this returns…" are forbidden.
+    Issue the real get_campaign and story_agent calls and wait for their responses before framing the scene. Take chapter/section/asset URLs from story_agent's real output; if it returns nothing, say so in `narrative` instead of inventing lore.
 
-    CRITICAL: ALWAYS return the JSON object and nothing else — no prose before or
-    after it. If campaign state is missing or you would ask the player a question,
-    put that text in `narrative` and leave the unknown fields at their defaults.
+    CRITICAL: ALWAYS return the JSON object and nothing else — no prose before or after it. 
+    If campaign state is missing or you would ask the player a question, put that text in `narrative` and leave the unknown fields at their defaults.
     Never reply with a plain-text message.""",
     tools=[
         FunctionTool(get_campaign),
@@ -82,7 +74,7 @@ campaign_executor = Agent(
 )
 
 
-class CampaignChecker(BaseAgent):
+class CampaignEvaluator(BaseAgent):
     """Evaluator for CampaignAgent output."""
 
     async def _run_async_impl(
@@ -96,7 +88,7 @@ class CampaignChecker(BaseAgent):
         normalized, error = validate_draft(draft, CampaignResult)
 
         if error:
-            feedback = "Rejected by campaign_checker: " + error
+            feedback = "Rejected by campaign_evaluator: " + error
             ctx.session.state["eval_feedback"] = feedback
             yield Event(
                 author=self.name,
@@ -107,31 +99,51 @@ class CampaignChecker(BaseAgent):
                 actions=EventActions(state_delta={"eval_feedback": feedback}),
             )
         else:
-            ctx.session.state["campaign_result"] = normalized
-            ctx.session.state["eval_feedback"] = ""
-            ctx.session.state["intent"] = "CAMPAIGN"
-            yield Event(
-                author=self.name,
-                content=types.Content(
-                    role="model",
-                    parts=[types.Part.from_text(text="[Evaluator] Campaign summary resolved successfully.")]
-                ),
-                actions=EventActions(
-                    escalate=True,
-                    state_delta={
-                        "campaign_result": normalized,
-                        "eval_feedback": "",
-                        "intent": "CAMPAIGN",
-                    },
-                ),
-            )
+            # Semantic evaluation
+            intent = "CAMPAIGN"
+            query = ctx.session.state.get("last_player_action", "")
+            async for ev in evaluate_draft_semantically(intent, query, normalized, ctx):
+                yield ev
+
+            is_valid, llm_feedback = ctx.session.state.get("evaluation_result_outcome", (True, ""))
+
+            if not is_valid:
+                feedback = "Rejected by campaign_evaluator: " + llm_feedback
+                ctx.session.state["eval_feedback"] = feedback
+                yield Event(
+                    author=self.name,
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text=f"[Evaluator] {feedback}")]
+                    ),
+                    actions=EventActions(state_delta={"eval_feedback": feedback}),
+                )
+            else:
+                ctx.session.state["campaign_result"] = normalized
+                ctx.session.state["eval_feedback"] = ""
+                ctx.session.state["intent"] = intent
+                yield Event(
+                    author=self.name,
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="[Evaluator] Campaign summary resolved successfully.")]
+                    ),
+                    actions=EventActions(
+                        escalate=True,
+                        state_delta={
+                            "campaign_result": normalized,
+                            "eval_feedback": "",
+                            "intent": intent,
+                        },
+                    ),
+                )
 
 
-campaign_checker = CampaignChecker(name="campaign_checker")
+campaign_evaluator = CampaignEvaluator(name="campaign_evaluator")
 
 campaign_agent = LoopAgent(
     name="campaign_agent",
-    sub_agents=[campaign_executor, campaign_checker],
+    sub_agents=[campaign_executor, campaign_evaluator],
     max_iterations=3,
     description="Scene summaries, GM notes, next-scene suggestions, and asset URLs.",
 )
