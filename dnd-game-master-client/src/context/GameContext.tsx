@@ -4,6 +4,9 @@ import {
   createContext,
   useContext,
   useReducer,
+  useState,
+  useEffect,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
@@ -14,6 +17,7 @@ import type { PartyMember } from "@/lib/types";
 // Step machine
 // ---------------------------------------------------------------------------
 export type Step =
+  | "landing"
   | "start"
   | "campaignSelect"
   | "partySelect"
@@ -23,9 +27,9 @@ export type Step =
 export type Branch = "new" | "resume" | null;
 
 const STEPS: Record<Exclude<Branch, null> | "none", Step[]> = {
-  none: ["start"],
-  new: ["start", "campaignSelect", "partySelect", "console"],
-  resume: ["start", "resumeLoad", "console"],
+  none: ["landing", "start"],
+  new: ["landing", "start", "campaignSelect", "partySelect", "console"],
+  resume: ["landing", "start", "resumeLoad", "console"],
 };
 
 export function stepsFor(branch: Branch): Step[] {
@@ -74,7 +78,9 @@ export type GameAction =
   | { type: "CONSUME_AUTOSTART" }
   | { type: "START_DISSOLVE" }
   | { type: "FINISH_DISSOLVE" }
-  | { type: "FINISH_ASSEMBLE" };
+  | { type: "FINISH_ASSEMBLE" }
+  | { type: "HYDRATE"; state: GameState }
+  | { type: "START_NEW_SESSION" };
 
 const clamp = (i: number, max: number) => Math.max(0, Math.min(i, max));
 const newId = () =>
@@ -85,20 +91,40 @@ const newId = () =>
 export function gameReducer(state: GameState, action: GameAction): GameState {
   const steps = stepsFor(state.branch);
   const lastIndex = steps.length - 1;
+  const currentStep = steps[state.stepIndex];
 
   switch (action.type) {
+    case "HYDRATE":
+      return {
+        ...action.state,
+        dissolving: false,
+        assembling: action.state.assembling || false,
+      };
+    case "START_NEW_SESSION":
+      return {
+        ...initialGameState,
+        dissolving: true,
+      };
     case "CHOOSE_BRANCH": {
       const next = stepsFor(action.branch);
-      return { ...state, branch: action.branch, stepIndex: clamp(1, next.length - 1) };
+      // Since "landing" is 0 and "start" is 1, advancing to the next step means index 2
+      return { ...state, branch: action.branch, stepIndex: clamp(2, next.length - 1) };
     }
-    case "NEXT":
+    case "NEXT": {
+      // "Next" from landing/start/campaign/party triggers a dissolve to the next screen.
+      // (Console is the end of the line, no next).
+      if (
+        currentStep === "landing" ||
+        currentStep === "partySelect" ||
+        currentStep === "resumeLoad"
+      ) {
+        return { ...state, dissolving: true };
+      }
       return { ...state, stepIndex: clamp(state.stepIndex + 1, lastIndex) };
+    }
     case "PREV": {
       const idx = clamp(state.stepIndex - 1, lastIndex);
-      // Returning to the start view resets the chosen branch so it can be re-picked.
-      return idx === 0
-        ? { ...state, stepIndex: 0, branch: null }
-        : { ...state, stepIndex: idx };
+      return { ...state, stepIndex: idx };
     }
     case "GO_TO":
       return { ...state, stepIndex: clamp(action.index, lastIndex) };
@@ -162,6 +188,45 @@ const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
+  const [isClient, setIsClient] = useState(false);
+
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    try {
+      const stored = sessionStorage.getItem("dnd-game-state");
+      const assembleStart = sessionStorage.getItem("dnd-game-assemble-start") === "true";
+      if (assembleStart) {
+        sessionStorage.removeItem("dnd-game-assemble-start");
+      }
+
+      let hydratedState = stored ? JSON.parse(stored) : null;
+      if (hydratedState || assembleStart) {
+        dispatch({
+          type: "HYDRATE",
+          state: {
+            ...(hydratedState || initialGameState),
+            assembling: assembleStart ? true : false,
+          },
+        });
+      }
+    } catch (e) {
+      console.error("Failed to hydrate state", e);
+    }
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (isClient) {
+      sessionStorage.setItem("dnd-game-state", JSON.stringify(state));
+    }
+  }, [state, isClient]);
+
+  if (!isClient) return null;
+
   const steps = stepsFor(state.branch);
   const currentStep = steps[clamp(state.stepIndex, steps.length - 1)];
   return (

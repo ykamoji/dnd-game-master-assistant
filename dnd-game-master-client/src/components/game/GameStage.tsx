@@ -11,9 +11,12 @@ import { CampaignSelectView } from "./CampaignSelectView";
 import { PartySelectView } from "./PartySelectView";
 import { ResumeView } from "./ResumeView";
 import { ConsoleView } from "./ConsoleView";
+import { LandingView } from "@/components/landing/LandingView";
 
 function renderStep(step: Step) {
   switch (step) {
+    case "landing":
+      return <LandingView />;
     case "start":
       return <StartChoiceView />;
     case "campaignSelect":
@@ -37,21 +40,29 @@ export function GameStage() {
   const { state, dispatch, steps, currentStep } = useGame();
   const { stepIndex, branch, selectedGameId, dissolving, assembling } = state;
   const activeViewRef = useRef<HTMLDivElement | null>(null);
-  const consoleViewRef = useRef<HTMLDivElement | null>(null);
+  const nextViewRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
-  // Seamless dissolve → assemble: capture the console up front, while the
+  // Seamless dissolve → assemble: capture the next view up front, while the
   // outgoing dissolve is still playing, so assembly can start with no gap.
   const { canvasRef, prepare, run, cancel } = useAssemble();
 
   useEffect(() => {
-    if (dissolving && consoleViewRef.current) prepare(consoleViewRef.current);
+    if (dissolving && nextViewRef.current) prepare(nextViewRef.current);
   }, [dissolving, prepare]);
 
   useEffect(() => {
-    if (!assembling) return;
+    if (!assembling) {
+      if (activeViewRef.current) activeViewRef.current.style.visibility = "";
+      return;
+    }
     let cancelled = false;
     (async () => {
+      // If we arrived from the landing page, we need to capture the target now,
+      // as it wasn't pre-captured during an outgoing dissolve.
+      if (!dissolving && activeViewRef.current) {
+        await prepare(activeViewRef.current);
+      }
       await run();
       if (!cancelled) dispatch({ type: "FINISH_ASSEMBLE" });
     })();
@@ -88,11 +99,11 @@ export function GameStage() {
 
   const lastIndex = steps.length - 1;
 
-  // Up works everywhere except the console, which is the terminal play screen
-  // (going "back" mid-game would drop the party/campaign selection).
-  const canGoUp = !dissolving && !assembling && currentStep !== "console";
+  // Up works everywhere. (Allow going back from console if desired).
+  const canGoUp = !dissolving && !assembling;
   const canGoDown = (() => {
     if (dissolving || assembling || stepIndex >= lastIndex) return false;
+    if (currentStep === "landing") return false; // Must explicitly click Enter the Table
     if (currentStep === "start") return branch !== null;
     if (currentStep === "campaignSelect") return Boolean(selectedGameId);
     // party + resume require an explicit action (confirm / select → dissolve).
@@ -118,21 +129,28 @@ export function GameStage() {
 
   return (
     <div className="relative h-screen w-full overflow-hidden">
-      {/* Corner navigation */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-start justify-between p-4 sm:p-6">
-        <div className="pointer-events-auto">
-          <NavButton direction="up" label="Back" onClick={goUp} disabled={!canGoUp} />
+      {/* Black overlay for the initial capture so the target doesn't flash */}
+      {assembling && !dissolving && (
+        <div className="pointer-events-none fixed inset-0 z-40 bg-obsidian" />
+      )}
+
+      {/* Corner navigation (hidden on landing page) */}
+      {currentStep !== "landing" && (
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-start justify-between p-4 sm:p-6">
+          <div className="pointer-events-auto">
+            <NavButton direction="up" label="Back" onClick={goUp} disabled={!canGoUp} />
+          </div>
+          <StepDots count={steps.length - 1} active={stepIndex - 1} />
+          <div className="pointer-events-auto">
+            <NavButton
+              direction="down"
+              label="Next"
+              onClick={goDown}
+              disabled={!canGoDown}
+            />
+          </div>
         </div>
-        <StepDots count={steps.length} active={stepIndex} />
-        <div className="pointer-events-auto">
-          <NavButton
-            direction="down"
-            label="Next"
-            onClick={goDown}
-            disabled={!canGoDown}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Vertically translated stack of full-screen views */}
       <div
@@ -148,17 +166,9 @@ export function GameStage() {
             key={step}
             ref={(el) => {
               if (i === stepIndex) activeViewRef.current = el;
-              if (step === "console") consoleViewRef.current = el;
+              if (i === stepIndex + 1) nextViewRef.current = el;
             }}
-            className="h-screen w-full"
-            // The console is rendered hidden while assembling so the finished DOM
-            // never flashes before the particles form it (AssembleOverlay reveals
-            // it on completion). Other views manage visibility imperatively.
-            style={
-              step === "console"
-                ? { visibility: assembling ? "hidden" : undefined }
-                : undefined
-            }
+            className={`w-full ${step === "landing" ? "h-screen overflow-y-auto" : "h-screen overflow-hidden"}`}
           >
             {renderStep(step)}
           </div>

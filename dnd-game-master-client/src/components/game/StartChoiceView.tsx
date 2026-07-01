@@ -10,7 +10,7 @@ export function StartChoiceView() {
   const { dispatch } = useGame();
 
   return (
-    <SectionShell>
+    <SectionShell className="bg-obsidian">
       <div className="flex flex-col items-center text-center">
         <motion.h2
           initial={{ opacity: 0, y: 10 }}
@@ -30,6 +30,9 @@ export function StartChoiceView() {
           >
             New Campaign
           </Button>
+          <div className="flex items-cente p-5">
+            OR
+          </div>
           <Button
             size="lg"
             variant="secondary"
