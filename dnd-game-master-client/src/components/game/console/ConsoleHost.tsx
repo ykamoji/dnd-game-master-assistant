@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { useCampaignHistory } from "@/hooks/useCampaignHistory";
 import { GAME_CATALOG } from "@/lib/games";
@@ -10,23 +10,17 @@ import { DEFAULT_LAYOUT_ID, getLayout } from "./layouts";
 
 const LAYOUT_STORAGE_KEY = "dnd.console.layout";
 
-const newId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `c-${Math.random().toString(36).slice(2)}`;
-
 /**
- * Mounts the interactive console: derives the campaign id (new uuid vs resumed),
- * loads its history, and renders the chosen layout around the shared provider.
+ * Mounts the interactive console: reads the active campaign id (minted at
+ * "Confirm & Begin" for new games, or the saved id for resume), loads its
+ * history, and renders the chosen layout around the shared provider.
  */
 export function ConsoleHost() {
   const { state: game } = useGame();
 
-  // A new campaign gets one fresh uuid for its lifetime; resume uses the saved id.
-  const newCampaignIdRef = useRef<string>("");
-  if (!newCampaignIdRef.current) newCampaignIdRef.current = newId();
-  const campaignId =
-    game.branch === "resume" ? game.selectedCampaignId : newCampaignIdRef.current;
+  // The session id is shared via GameContext so it matches the id the first turn
+  // was submitted under (see BEGIN_NEW_CAMPAIGN / SELECT_CAMPAIGN).
+  const campaignId = game.campaignId;
 
   const { history, progress, summary, loading, reload } = useCampaignHistory(campaignId);
 

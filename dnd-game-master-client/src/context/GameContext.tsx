@@ -41,6 +41,10 @@ export interface GameState {
   selectedGameId: string | null;
   party: PartyMember[];
   selectedCampaignId: string | null;
+  /** The active ADK session/campaign id (new uuid for new, saved id for resume). */
+  campaignId: string | null;
+  /** Set when a new campaign is confirmed: the console fires its first turn. */
+  autoStart: boolean;
   dissolving: boolean;
   assembling: boolean;
 }
@@ -51,6 +55,8 @@ export const initialGameState: GameState = {
   selectedGameId: null,
   party: [],
   selectedCampaignId: null,
+  campaignId: null,
+  autoStart: false,
   dissolving: false,
   assembling: false,
 };
@@ -64,6 +70,8 @@ export type GameAction =
   | { type: "SET_PARTY"; party: PartyMember[] }
   | { type: "PRELOAD_PARTY" }
   | { type: "SELECT_CAMPAIGN"; campaignId: string }
+  | { type: "BEGIN_NEW_CAMPAIGN" }
+  | { type: "CONSUME_AUTOSTART" }
   | { type: "START_DISSOLVE" }
   | { type: "FINISH_DISSOLVE" }
   | { type: "FINISH_ASSEMBLE" };
@@ -109,7 +117,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         party: PRELOAD_PARTY.map((m) => ({ ...m, id: newId() })),
       };
     case "SELECT_CAMPAIGN":
-      return { ...state, selectedCampaignId: action.campaignId };
+      // Resume: the saved id is also the active session id.
+      return {
+        ...state,
+        selectedCampaignId: action.campaignId,
+        campaignId: action.campaignId,
+        autoStart: false,
+      };
+    case "BEGIN_NEW_CAMPAIGN":
+      // Confirm & Begin: mint the session id, kick off the dissolve, and flag the
+      // console to fire the first (party-setup) turn.
+      return { ...state, campaignId: newId(), autoStart: true, dissolving: true };
+    case "CONSUME_AUTOSTART":
+      return { ...state, autoStart: false };
     case "START_DISSOLVE":
       return { ...state, dissolving: true };
     case "FINISH_DISSOLVE":

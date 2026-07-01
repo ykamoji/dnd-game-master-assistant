@@ -110,7 +110,7 @@ export function PartySelectView() {
                 ⚔ Preload Best Party
               </Button>
               <Button
-                onClick={() => dispatch({ type: "START_DISSOLVE" })}
+                onClick={() => dispatch({ type: "BEGIN_NEW_CAMPAIGN" })}
                 disabled={!canConfirm}
                 className="ml-auto"
               >

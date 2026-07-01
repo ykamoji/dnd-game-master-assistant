@@ -76,24 +76,25 @@ export function healthDb(): Promise<{ status: string }> {
 // resolves it via the built-in /run endpoint.
 // ---------------------------------------------------------------------------
 
-/** Base64-encode a UTF-8 string (btoa only handles latin1). */
-function b64(s: string): string {
-  return btoa(unescape(encodeURIComponent(s)));
-}
-
 /**
- * POST /ambient (→ backend "/") — submit a turn as a Pub/Sub push message. The
- * subscription is the session id (== campaign id); `data` carries the player's
- * action. Resolves when the run finishes or pauses for approval.
+ * POST /ambient (→ backend "/") — submit a turn as a Pub/Sub-style push message.
+ * The subscription is the session id (== campaign id); `data` is the JSON payload
+ * the workflow reads — a regular turn sends `{ action }`, the first turn of a new
+ * campaign sends `{ game, party }`. Resolves when the run finishes or pauses.
+ *
+ * `data` is sent as a raw JSON object (not base64). Real GCP Pub/Sub requires a
+ * base64 string here, but this local bridge talks straight to the ambient
+ * handler, whose `_extract_player_action` accepts an object directly — so the
+ * backend receives readable JSON with no decode step.
  */
 export async function submitTurn(args: {
   sessionId: string;
   userId: string;
-  action: string;
+  data: Record<string, unknown>;
 }): Promise<void> {
   const payload = {
     message: {
-      data: b64(JSON.stringify({ action: args.action })),
+      data: args.data,
       attributes: { user_id: args.userId },
     },
     subscription: args.sessionId,

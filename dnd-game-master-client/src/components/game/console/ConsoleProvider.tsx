@@ -206,7 +206,7 @@ export function ConsoleProvider({
   campaignId,
   children,
 }: ConsoleProviderProps) {
-  const { state: game } = useGame();
+  const { state: game, dispatch: gameDispatch } = useGame();
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // The session id is the campaign id (the ambient handler keys the session by
@@ -221,6 +221,8 @@ export function ConsoleProvider({
   const esRef = useRef<EventSource | null>(null);
   const eventsRef = useRef<SessionEvent[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
+  // Which campaign id has already auto-started, so it fires exactly once.
+  const autoStartedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     historyRef.current = history;
@@ -364,12 +366,50 @@ export function ConsoleProvider({
 
       // The POST may resolve or fail in transit; either way the SSE + history
       // tell us the real outcome.
-      await submitTurnApi({ sessionId: sid, userId: userIdRef.current, action: finalAction }).catch(
-        () => undefined,
-      );
+      await submitTurnApi({
+        sessionId: sid,
+        userId: userIdRef.current,
+        data: { action: finalAction },
+      }).catch(() => undefined);
       await waitForOutcome(startLen);
     },
     [campaignId, game.branch, bootstrapPreamble, openStream, resetEvents, waitForOutcome],
+  );
+
+  /**
+   * Fire the first turn of a new campaign — triggered by "Confirm & Begin" in the
+   * party selector (via the GameContext autoStart flag). The payload carries the
+   * chosen adventure + assembled party as JSON so the setup agent can build the
+   * campaign. Managed here (not from the party view) so the live timeline and
+   * approval gate work exactly like any other turn.
+   */
+  const beginCampaign = useCallback(
+    async (sid: string) => {
+      const partyPayload = game.party
+        .filter((p) => p.name.trim())
+        .map((p) => ({ role: p.role, class: p.className, name: p.name }));
+      const startLen = historyRef.current.length;
+
+      statusRef.current = "running";
+      dispatch({ type: "RUN_START" });
+      resetEvents();
+
+      dispatch({ type: "START_STREAM_DELAY" });
+      setTimeout(() => {
+        if (statusRef.current === "running") {
+          dispatch({ type: "END_STREAM_DELAY" });
+          openStream(sid);
+        }
+      }, 5000);
+
+      await submitTurnApi({
+        sessionId: sid,
+        userId: userIdRef.current,
+        data: { game: campaignName, party: partyPayload },
+      }).catch(() => undefined);
+      await waitForOutcome(startLen);
+    },
+    [game.party, campaignName, openStream, resetEvents, waitForOutcome],
   );
 
   const approve = useCallback(async () => {
@@ -420,6 +460,7 @@ export function ConsoleProvider({
   // is pending within the probe window, drop the stream (settled session).
   useEffect(() => {
     if (!campaignId) return;
+    if (game.autoStart) return; // a fresh new campaign auto-starts below instead
     resetEvents();
     openStream(campaignId);
     const probe = setTimeout(() => {
@@ -432,7 +473,21 @@ export function ConsoleProvider({
       clearTimeout(probe);
       closeStream();
     };
-  }, [campaignId, openStream, closeStream, resetEvents]);
+  }, [campaignId, game.autoStart, openStream, closeStream, resetEvents]);
+
+  // "Confirm & Begin" fires the first turn once per new campaign.
+  useEffect(() => {
+    if (
+      game.autoStart &&
+      campaignId &&
+      autoStartedForRef.current !== campaignId &&
+      statusRef.current === "idle"
+    ) {
+      autoStartedForRef.current = campaignId;
+      gameDispatch({ type: "CONSUME_AUTOSTART" });
+      void beginCampaign(campaignId);
+    }
+  }, [game.autoStart, campaignId, beginCampaign, gameDispatch]);
 
   const pending = state.runStatus !== "idle" && state.runStatus !== "error";
   const activeSnapshot =
