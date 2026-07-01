@@ -10,10 +10,11 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   onClose: () => void;
-  size?: "md" | "lg";
+  size?: "xs" | "md" | "lg";
 }
 
 const SIZE: Record<NonNullable<ModalProps["size"]>, string> = {
+  xs: "max-w-4xl",
   md: "max-w-7md",
   lg: "max-w-7xl",
 };

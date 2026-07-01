@@ -99,20 +99,21 @@ export function PartySelectView() {
               ))}
             </AnimatePresence>
 
-            <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
               <Button variant="secondary" onClick={addMember} disabled={atMax}>
                 + Add Hero
               </Button>
               <Button
+                className="relative"
                 variant="ghost"
                 onClick={() => dispatch({ type: "PRELOAD_PARTY" })}
               >
-                ⚔ Preload Best Party
+                <div className="absolute left-1 text-[45px]">⚔</div> <div className="pl-5">Load Best Party</div>
               </Button>
               <Button
                 onClick={() => dispatch({ type: "BEGIN_NEW_CAMPAIGN" })}
                 disabled={!canConfirm}
-                className="ml-auto"
+                className=""
               >
                 Confirm &amp; Begin
               </Button>

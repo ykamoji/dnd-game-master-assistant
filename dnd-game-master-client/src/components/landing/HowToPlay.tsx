@@ -50,7 +50,7 @@ export function HowToPlay() {
 
   return (
     <>
-      <div className="w-full bg-obsidian rounded-3xl">
+      <div className="w-full rounded-3xl">
         <h2 className="text-gilded mb-8 text-center font-display text-3xl font-bold tracking-wide sm:text-4xl">
           How to Play
         </h2>

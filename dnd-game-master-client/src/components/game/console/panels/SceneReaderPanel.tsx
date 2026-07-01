@@ -81,7 +81,7 @@ function SuggestionChips({
             key={i}
             type="button"
             onClick={() => onPick(s)}
-            className="rounded-full border border-gold/30 bg-obsidian-2 px-3 py-1 text-left text-sm text-parchment transition-colors hover:border-gold hover:text-gold-bright"
+            className="rounded-full cursor-pointer border border-gold/30 bg-obsidian-2 px-3 py-1 text-left text-sm text-parchment transition-colors hover:border-gold hover:text-gold-bright"
           >
             {s}
           </button>
@@ -149,6 +149,15 @@ function SnapshotLayout({
   const chapterLine = [meta.chapter, meta.section].filter(Boolean).join(" · ");
   const showDescription = s.description && s.description !== s.narrative;
 
+  let suggestedActions = meta.suggested_actions ?? [];
+  if (s.intent?.toUpperCase() === "SETUP" && suggestedActions.length === 0) {
+    suggestedActions = [
+      "Lets start our adventure into the new world",
+      "Tell me about the world",
+      "Lets begin exploring",
+    ];
+  }
+
   return (
     <div className="flex h-full gap-4 overflow-hidden pr-2">
       {/* Left Column: Metadata & Actions */}
@@ -194,7 +203,7 @@ function SnapshotLayout({
 
         <SuggestionChips
           title="Suggested Actions"
-          items={meta.suggested_actions ?? []}
+          items={suggestedActions}
           onPick={setComposerDraft}
         />
         <SuggestionChips

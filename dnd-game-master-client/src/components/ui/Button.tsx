@@ -16,7 +16,7 @@ const VARIANTS: Record<Variant, string> = {
   secondary:
     "bg-stone text-parchment border border-stone-2 hover:border-gold/60 hover:text-gold-bright",
   ghost:
-    "bg-transparent text-parchment-dim border border-transparent hover:text-gold hover:border-gold/40",
+    "bg-parchment-dim text-obsidian font-semibold border border-transparent hover:text-parchment hover:bg-blood hover:border-gold/40",
 };
 
 const SIZES: Record<Size, string> = {
@@ -33,7 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   return (
     <button
       ref={ref}
-      className={`inline-flex items-center justify-center gap-2 rounded-md font-display tracking-wide uppercase transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center cursor-pointer justify-center gap-2 rounded-md font-display tracking-wide uppercase transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     />
   );

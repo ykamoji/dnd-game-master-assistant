@@ -285,10 +285,18 @@ export function ConsoleProvider({
         seenRef.current.add(ev.id);
         eventsRef.current = [...eventsRef.current, ev];
         dispatch({ type: "APPEND_EVENT", event: ev });
+        
+        // If it's a HITL approval pause
         if (isApprovalEvent(ev)) {
           statusRef.current = "awaiting_approval";
           dispatch({ type: "AWAIT_APPROVAL", draft: extractDraft(eventsRef.current) });
-          closeStream(); // run is paused at the gate — stop streaming (req 8)
+          closeStream(); // run is paused at the gate — stop streaming
+        } 
+        // If it's the final output event, the run is complete.
+        // This avoids needing to continuously poll getCampaign in waitForOutcome.
+        else if (ev.author === "output_agent" && ev.actions?.state_delta) {
+           // We know the turn is finished. Call reloadHistory to update the UI.
+           reloadHistory();
         }
       };
       // On a transient error EventSource auto-reconnects; the replay is deduped.
@@ -305,6 +313,9 @@ export function ConsoleProvider({
   const waitForOutcome = useCallback(
     (startHistoryLen: number): Promise<void> =>
       new Promise((resolve) => {
+        // We trigger a single reloadHistory to see if it's already done (e.g. submitTurnApi finished successfully).
+        reloadHistory();
+
         const deadline = Date.now() + OUTCOME_GRACE_MS;
         const check = () => {
           if (statusRef.current !== "running") {
@@ -330,7 +341,8 @@ export function ConsoleProvider({
             resolve();
             return;
           }
-          reloadHistory();
+          // Rely on SSE 'output_agent' event to trigger reloadHistory when the turn is actually done,
+          // rather than continuously polling getCampaign and causing 404 spam.
           setTimeout(check, OUTCOME_RECHECK_MS);
         };
         check();
@@ -417,6 +429,7 @@ export function ConsoleProvider({
     const startLen = historyRef.current.length;
     statusRef.current = "running";
     dispatch({ type: "RESUME_RUN" });
+    console.log(campaignId)
     openStream(campaignId); // stream the continuation (replayed events are deduped)
     await sendDecision({ sessionId: campaignId, userId: userIdRef.current, approved: true }).catch(
       () => undefined,

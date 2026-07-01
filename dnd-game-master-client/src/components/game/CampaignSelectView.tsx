@@ -14,8 +14,8 @@ export function CampaignSelectView() {
 
   return (
     <SectionShell>
-      <div className="mb-8 text-center">
-        <h2 className="text-gilded font-display text-3xl font-bold tracking-wide sm:text-4xl">
+      <div className="mb-12 flex flex-col items-center text-center px-6">
+        <h2 className="text-gilded font-display text-4xl font-bold tracking-wide sm:text-5xl">
           Choose Your Adventure
         </h2>
         <p className="mt-3 font-rune text-parchment-dim">
@@ -23,27 +23,34 @@ export function CampaignSelectView() {
         </p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex w-[calc(100%+3rem)] -mx-6 snap-x snap-mandatory gap-6 overflow-x-auto px-[max(20vw,1.5rem)] pb-12 pt-10 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {GAME_CATALOG.map((game) => (
-          <Card
+          <div
             key={game.id}
-            title={game.title}
-            description={game.blurb}
-            imageUrl={game.coverUrl}
-            badge={game.available ? undefined : "Coming Soon"}
-            disabled={!game.available}
-            onClick={() =>
-              game.available
-                ? dispatch({ type: "SELECT_GAME", gameId: game.id })
-                : setComingSoon(game.title)
-            }
-          />
+            className="w-[300px] shrink-0 snap-center sm:w-[350px] transition-transform duration-300 hover:-translate-y-2 hover:scale-[1.02]"
+          >
+            <Card
+              title={game.title}
+              description={game.blurb}
+              imageUrl={game.coverUrl}
+              badge={game.available ? undefined : "Coming Soon"}
+              disabled={!game.available}
+              onClick={() =>
+                game.available
+                  ? dispatch({ type: "SELECT_GAME", gameId: game.id })
+                  : setComingSoon(game.title)
+              }
+            />
+          </div>
         ))}
+        {/* Spacer to ensure the last card can scroll to the center */}
+        <div className="w-[10vw] shrink-0" aria-hidden />
       </div>
 
       <Modal
         open={comingSoon !== null}
         title="Not Yet Unsealed"
+        size="xs"
         onClose={() => setComingSoon(null)}
       >
         <p>

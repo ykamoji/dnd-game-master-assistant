@@ -29,11 +29,10 @@ export function Card({
       onClick={onClick}
       whileHover={{ y: -6 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className={`group relative flex w-full flex-col overflow-hidden rounded-card border text-left transition-colors ${
-        disabled
+      className={`group relative cursor-pointer flex w-full flex-col overflow-hidden rounded-card border text-left transition-colors ${disabled
           ? "border-stone-2 opacity-80"
           : "border-gold/30 hover:border-gold"
-      }`}
+        }`}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-stone">
         {/* eslint-disable-next-line @next/next/no-img-element */}

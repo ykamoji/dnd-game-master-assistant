@@ -9,11 +9,11 @@ const TOA_MIRROR =
 
 export const GAME_CATALOG: GameCatalogEntry[] = [
   {
-    id: "castle-ravenloft",
-    title: "Castle Ravenloft",
+    id: "princes-of-the-apocalypse",
+    title: "Princes of the Apocalypse",
     blurb:
-      "Trapped in the mist-shrouded land of Barovia, you must end the reign of the vampire lord Strahd von Zarovich.",
-    coverUrl: "/placeholders/ravenloft.svg",
+      "A terrible threat gathers in the North. Throughout this region of the Forgotten Realms, savage marauders bring destruction.",
+    coverUrl: "https://raw.githubusercontent.com/5etools-mirror-3/5etools-img/main/adventure/PotA/000-poa01-01.webp",
     available: false,
   },
   {
@@ -25,11 +25,11 @@ export const GAME_CATALOG: GameCatalogEntry[] = [
     available: true,
   },
   {
-    id: "wrath-of-ashardalon",
-    title: "Wrath of Ashardalon",
+    id: "hoard-of-the-dragon-queen",
+    title: "Hoard of the Dragon Queen",
     blurb:
-      "Descend into the monster-infested caverns beneath Mount Hotenow, where the red dragon Ashardalon stirs.",
-    coverUrl: "/placeholders/ashardalon.svg",
+      "The Cult of the Dragon has been active in Faerûn for centuries. It has focused on making undead dragons to fulfill a prophecy most of that time, but that's changing.",
+    coverUrl: "https://raw.githubusercontent.com/5etools-mirror-3/5etools-img/main/adventure/HotDQ/006-tod-01-01.webp",
     available: false,
   },
 ];
