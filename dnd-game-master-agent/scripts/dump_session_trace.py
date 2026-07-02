@@ -39,8 +39,17 @@ _GREEN = "\033[32m"
 _MAGENTA = "\033[35m"
 
 
-def _ts(epoch: float) -> str:
-    return _dt.datetime.fromtimestamp(epoch, _dt.timezone.utc).strftime("%H:%M:%S")
+def _parse_ts(epoch, fmt: str) -> str:
+    if isinstance(epoch, str):
+        try:
+            return _dt.datetime.fromisoformat(epoch).strftime(fmt)
+        except ValueError:
+            pass
+    return _dt.datetime.fromtimestamp(float(epoch), _dt.timezone.utc).strftime(fmt)
+
+
+def _ts(epoch) -> str:
+    return _parse_ts(epoch, "%H:%M:%S")
 
 
 def _color(text: str, code: str, enabled: bool) -> str:
@@ -69,9 +78,7 @@ def list_sessions(conn: sqlite3.Connection) -> None:
         return
     print(f"{'SESSION ID':38}  {'USER':10}  {'UPDATED (UTC)':19}  EVENTS")
     for r in rows:
-        updated = _dt.datetime.fromtimestamp(
-            r["update_time"], _dt.timezone.utc
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        updated = _parse_ts(r["update_time"], "%Y-%m-%d %H:%M:%S")
         print(f"{r['id']:38}  {r['user_id']:10}  {updated:19}  {r['n_events']}")
 
 

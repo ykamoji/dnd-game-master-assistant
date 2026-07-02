@@ -55,5 +55,8 @@ integration:
 	set -a && . ./app/.env && set +a && set -o pipefail && \
 		uv run --extra local pytest tests/integration/test_agent.py 2>&1 | tee $(LOG_DIR)/make-integration.log
 
+story-test:
+	uv run python scripts/test_story_agent.py
+
 smoke-test:
 	uv run python smoke_test.py

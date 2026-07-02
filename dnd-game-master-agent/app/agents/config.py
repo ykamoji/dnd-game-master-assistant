@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Hosted default (unchanged behavior)
-_HOSTED_MODEL = "gemma-4-31b-it" # "gemini-3.1-flash-lite" "gemma-4-26b-a4b-it"
+_HOSTED_MODEL = os.getenv("GOOGLE_MODEL", "")
 
 # Local dev: route through a local Ollama model to avoid Google API rate limits.
 # Enable with USE_LOCAL_LLM=1 (and `ollama run gemma4:e2b-mxfp8` running locally).
