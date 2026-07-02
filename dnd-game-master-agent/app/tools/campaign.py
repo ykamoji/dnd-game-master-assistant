@@ -15,6 +15,7 @@ class CampaignMetadata(BaseModel):
     combat_log: List[Dict] = Field(default_factory=list, description="Combat log entries from this turn ({action, target, roll, result})")
     math_breakdown: Optional[str] = Field(default=None, description="Explicit dice math for this turn's action resolution")
     requires_roll: bool = Field(default=False, description="Whether the next suggested action likely needs a dice roll")
+    invocation_id: Optional[str] = Field(default=None, description="The invocation ID for this turn")
 
 class DialogueLine(BaseModel):
     """A single line of NPC dialogue persisted with the turn snapshot."""

@@ -45,11 +45,11 @@ campaign_executor = Agent(
       "section": "from story_agent",
       "scene_summary": "short evocative title/summary",
       "gm_notes": "key NPCs present, threats, opportunities",
-      "next_scene_suggestions": ["...", "...", "..."],
+      "next_scene_suggestions": ["str"],
       "assets": [{URL: "from story_agent", description: "from story_agent"}, ...],
       "progress": 0.1,
-      "initiative": ["...", "..."],
-      "suggested_actions": ["...", "...", "..."]
+      "initiative": ["str"],
+      "suggested_actions": ["str"]
     }
 
     Set `progress` value based on the chapter progression and scene within the chapter (total 5 chapters). 

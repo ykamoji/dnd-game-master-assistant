@@ -89,18 +89,22 @@ def _latest_session_id(conn: sqlite3.Connection) -> str | None:
     return row["id"] if row else None
 
 
-def _iter_events(conn: sqlite3.Connection, session_id: str):
-    return conn.execute(
+def _iter_events(conn: sqlite3.Connection, session_id: str, last_only: bool = False):
+    rows = conn.execute(
         "SELECT id, invocation_id, timestamp, event_data FROM events "
         "WHERE session_id = ? ORDER BY timestamp, id",
         (session_id,),
     ).fetchall()
+    if last_only and rows:
+        last_inv_id = rows[-1]["invocation_id"]
+        rows = [r for r in rows if r["invocation_id"] == last_inv_id]
+    return rows
 
 
-def dump_jsonl(conn: sqlite3.Connection, session_id: str, out_path: Path) -> int:
+def dump_jsonl(conn: sqlite3.Connection, session_id: str, out_path: Path, last_only: bool = False) -> int:
     n = 0
     with out_path.open("w") as fh:
-        for row in _iter_events(conn, session_id):
+        for row in _iter_events(conn, session_id, last_only):
             ev = json.loads(row["event_data"])
             ev.setdefault("id", row["id"])
             ev.setdefault("invocation_id", row["invocation_id"])
@@ -145,14 +149,14 @@ def _summarize_part(part: dict, color: bool) -> list[str]:
     return lines
 
 
-def dump_pretty(conn: sqlite3.Connection, session_id: str, color: bool) -> None:
+def dump_pretty(conn: sqlite3.Connection, session_id: str, color: bool, last_only: bool = False) -> None:
     sess = conn.execute(
         "SELECT user_id, create_time, state FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
     if sess is None:
         sys.exit(f"No session with id {session_id!r}. Try --list.")
 
-    rows = _iter_events(conn, session_id)
+    rows = _iter_events(conn, session_id, last_only)
     print(_color("=" * 78, _DIM, color))
     print(_color(f"SESSION {session_id}", _BOLD, color))
     print(f"  user={sess['user_id']}  created={_ts(sess['create_time'])}  events={len(rows)}")
@@ -202,6 +206,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--session", help="Session id (default: most recently updated)")
     ap.add_argument("--list", action="store_true", help="List sessions and exit")
     ap.add_argument("--jsonl", type=Path, metavar="PATH", help="Export events to JSONL instead of pretty-printing")
+    ap.add_argument("--last", action="store_true", help="Dump only the last invocation of the session")
     ap.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
     args = ap.parse_args(argv)
 
@@ -216,12 +221,12 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit("No sessions in db.")
 
         if args.jsonl:
-            n = dump_jsonl(conn, session_id, args.jsonl)
+            n = dump_jsonl(conn, session_id, args.jsonl, args.last)
             print(f"Wrote {n} events for session {session_id} → {args.jsonl}")
             return
 
         color = sys.stdout.isatty() and not args.no_color
-        dump_pretty(conn, session_id, color)
+        dump_pretty(conn, session_id, color, args.last)
     finally:
         conn.close()
 

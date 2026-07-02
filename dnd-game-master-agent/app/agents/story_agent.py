@@ -70,7 +70,7 @@ How to answer:
    For each matching row, create an entry in `assets` with the values from `URL` and `Description` (e.g. {{"URL": "004-0201.webp", "description": "Chapter 1: Port Nyanzaru"}}). 
    Return an empty list only if nothing matches.
 
-Return your final answer as a single JSON object matching this schema:
+Return your final answer as a single JSON object matching this schema. DO NOT wrap your response in markdown code blocks (e.g. ```json). Return raw JSON only:
 {{
   "found": true,
   "chapter": "Ch X Location",

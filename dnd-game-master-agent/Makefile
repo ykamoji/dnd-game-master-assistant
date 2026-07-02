@@ -36,7 +36,7 @@ playground:
 	agents-cli playground
 
 local:
-	uv run python app/fast_api_app.py
+	uv run python app/fast_api_app.py --reload
 
 run:
 	@if [ -z "$(PROMPT)" ]; then \

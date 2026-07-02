@@ -57,7 +57,9 @@ action_executor = Agent(
       "math_breakdown": "AC 15 vs attack 18 → hit; damage 1d8+3 = 8",
       "party": [{"name": "...", "role": "...", "class": "...", "hp": 0, "max_hp": 0, "conditions": ["..."], "armors": ["..."], "spells": ["..."], "weapons": ["..."], "magicitems": ["..."]}],
       "requires_roll": true,
-      "suggested_actions": ["...", "...", "..."]
+      "next_scene_suggestions": ["str"],
+      "suggested_actions": ["str"],
+      "assets": [{{"URL":"str", "description":"str"}}, ...]
     }
 
     Rules: always show your math; be specific about dice and modifiers; omit a character from `party` entirely rather than guessing their hp.

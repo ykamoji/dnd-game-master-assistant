@@ -249,6 +249,7 @@ def setup_finalize(ctx: Context, node_input: Any) -> Event:
             m["hp"] = m["max_hp"]
     party = _build_party_state(members, PartyState, CharacterState)
 
+    invocation_id = getattr(ctx, "invocation_id", None)
     metadata = CampaignMetadata(
         chapter=result.get("chapter") or 'chapter',
         section=result.get("section") or 'section',
@@ -256,6 +257,7 @@ def setup_finalize(ctx: Context, node_input: Any) -> Event:
         gm_notes=result.get("gm_notes") or '',
         next_scene_suggestions=result.get("next_scene_suggestions") or [],
         suggested_actions=result.get("suggested_actions") or [],
+        invocation_id=invocation_id,
     ) 
 
     update_campaign(
@@ -266,7 +268,7 @@ def setup_finalize(ctx: Context, node_input: Any) -> Event:
         narrative=result.get("narrative") or 'The campaign begins not in a grand dungeon...',
         summary=result.get("scene_summary") or 'Yet to uncover',
         scene=result.get("scene_summary") or 'Yet to uncover',
-        initiative=result.get("initiative") or 'Initiated',
+        initiative=result.get("initiative") or ['Initiated'],
         metadata=metadata,
         intent="SETUP",
     )

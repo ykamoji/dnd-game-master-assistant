@@ -52,6 +52,103 @@ class SessionEvent(BaseModel):
     actions: Optional[Actions] = None
 # -----------------------
 
+def extract_json_from_string(text: Any) -> Any:
+    if not isinstance(text, str):
+        return text
+    
+    # Try to extract from markdown code blocks like ```json ... ```
+    match = re.search(r"```(?:json)?\s*(\{.*\}|\[.*\])\s*```", text, re.DOTALL)
+    if match:
+        json_str = match.group(1)
+    else:
+        json_str = text.strip()
+    
+    if json_str.startswith("{") or json_str.startswith("["):
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+    return text
+
+def parse_event_row(row: sqlite3.Row) -> Optional[SessionEvent]:
+    ev_data = json.loads(row["event_data"])
+    author = ev_data.get("author", "?")
+
+    if author in ("output_agent",):
+        delta = ev_data.get("actions") and ev_data.get("actions").get("state_delta")
+        if not delta or not delta.get("tools_fired") or len(delta.get("tools_fired")) == 0:
+            return None
+    
+    if author in ("user", "campaign_agent", "npc_dialogue_agent", "action_agent"):
+        return None
+
+    # if author in ("dnd_game_master_agent",):
+    #     delta = ev_data.get("actions", {}).get("state_delta", {})
+    #     if not delta or delta.get("intent") or "update_campaign" in delta.get("tools_fired", []):
+    #         return None
+        
+    if author in ("intent_classifier", "campaign_executor", "action_executor", "npc_executor", "llm_evaluator"):
+        parts = ev_data.get("content", {}).get("parts")
+        if not parts:
+            return None
+    
+    # Parse embedded JSON in state_delta
+    actions = ev_data.get("actions")
+    if actions and isinstance(actions.get("state_delta"), dict):
+        sd = actions["state_delta"]
+        for draft_key in ["campaign_draft", "action_draft", "npc_draft", "campaign_result", "action_result", "npc_result"]:
+            if draft_key in sd:
+                sd[draft_key] = extract_json_from_string(sd[draft_key])
+    
+    # Parse embedded JSON in content parts
+    content = ev_data.get("content")
+    if content and isinstance(content.get("parts"), list):
+        for p in content["parts"]:
+            if "text" in p:
+                p["text"] = extract_json_from_string(p["text"])
+            if "function_response" in p and isinstance(p["function_response"], dict):
+                fr = p["function_response"]
+                if isinstance(fr.get("response"), dict) and "result" in fr["response"]:
+                    fr["response"]["result"] = extract_json_from_string(fr["response"]["result"])
+    
+    event_dict = {
+        "id": row["id"],
+        "invocation_id": row["invocation_id"],
+        "timestamp": row["timestamp"],
+        "author": author,
+        "content": ev_data.get("content"),
+        "actions": ev_data.get("actions"),
+    }
+    
+    try:
+        return SessionEvent(**event_dict)
+    except Exception as e:
+        logger.error(f"Failed to validate event {row['id']}: {e}")
+        return None
+
+@router.get("/ambient/sessions/{session_id}/invocations/{invocation_id}/events")
+async def get_invocation_events(session_id: str, invocation_id: str) -> List[SessionEvent]:
+    """Fetch all events for a specific invocation ID."""
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, invocation_id, timestamp, event_data FROM events "
+            "WHERE session_id = ? AND invocation_id = ? ORDER BY timestamp, id",
+            (session_id, invocation_id),
+        ).fetchall()
+        
+        events = []
+        for row in rows:
+            event_obj = parse_event_row(row)
+            if event_obj:
+                events.append(event_obj)
+        
+        return events
+    finally:
+        conn.close()
+
+
 @router.get("/ambient/sessions/{session_id}/stream")
 async def stream_session_events(session_id: str):
     """
@@ -82,23 +179,6 @@ async def stream_session_events(session_id: str):
         finally:
             conn.close()
 
-    def extract_json_from_string(text: Any) -> Any:
-        if not isinstance(text, str):
-            return text
-        
-        # Try to extract from markdown code blocks like ```json ... ```
-        match = re.search(r"```(?:json)?\s*(\{.*\}|\[.*\])\s*```", text, re.DOTALL)
-        if match:
-            json_str = match.group(1)
-        else:
-            json_str = text.strip()
-        
-        if json_str.startswith("{") or json_str.startswith("["):
-            try:
-                return json.loads(json_str)
-            except json.JSONDecodeError:
-                pass
-        return text
 
     async def event_generator():
         seen_ids = set()
@@ -111,61 +191,15 @@ async def stream_session_events(session_id: str):
                         continue
                     seen_ids.add(row["id"])
                     
-                    ev_data = json.loads(row["event_data"])
-                    author = ev_data.get("author", "?")
-
-                    if author in ("output_agent"):
-                        delta = ev_data.get("actions") and ev_data.get("actions").get("state_delta")
-                        if not delta.get("tools_fired") or len(delta.get("tools_fired")) == 0:
-                            continue
-                    
-                    if author in ("user", "campaign_agent", "npc_dialogue_agent", "action_agent"):
+                    event_obj = parse_event_row(row)
+                    if not event_obj:
                         continue
-
-                    if author in ("dnd_game_master_agent"):
-                        delta = ev_data.get("actions") and ev_data.get("actions").get("state_delta")
-                        if delta.get("intent") or "update_campaign" in delta.get("tools_fired", []):
-                            continue
-                        
-                    if author in ("intent_classifier", "campaign_executor", "action_executor", "npc_executor", "llm_evaluator"):
-                        parts = ev_data.get("content", {}).get("parts")
-                        if not parts:
-                            continue
-                    
-                    # Parse embedded JSON in state_delta
-                    actions = ev_data.get("actions")
-                    if actions and isinstance(actions.get("state_delta"), dict):
-                        sd = actions["state_delta"]
-                        for draft_key in ["campaign_draft", "action_draft", "npc_draft", "campaign_result", "action_result", "npc_result"]:
-                            if draft_key in sd:
-                                sd[draft_key] = extract_json_from_string(sd[draft_key])
-                    
-                    # Parse embedded JSON in content parts
-                    content = ev_data.get("content")
-                    if content and isinstance(content.get("parts"), list):
-                        for p in content["parts"]:
-                            if "text" in p:
-                                p["text"] = extract_json_from_string(p["text"])
-                            if "function_response" in p and isinstance(p["function_response"], dict):
-                                fr = p["function_response"]
-                                if isinstance(fr.get("response"), dict) and "result" in fr["response"]:
-                                    fr["response"]["result"] = extract_json_from_string(fr["response"]["result"])
-                    
-                    event_dict = {
-                        "id": row["id"],
-                        "invocation_id": row["invocation_id"],
-                        "timestamp": row["timestamp"],
-                        "author": author,
-                        "content": ev_data.get("content"),
-                        "actions": ev_data.get("actions"),
-                    }
                     
                     try:
-                        event_obj = SessionEvent(**event_dict)
                         # exclude_none keeps the output clean and similar to the raw trace
                         data_str = event_obj.model_dump_json(exclude_none=True)
                     except Exception as e:
-                        logger.error(f"Failed to validate event {row['id']}: {e}")
+                        logger.error(f"Failed to dump event {row['id']}: {e}")
                         continue
                     
                     yield f"data: {data_str}\n\n"

@@ -12,6 +12,7 @@ class DialogueLine(BaseModel):
     speaker: str = Field(description="Name of the NPC speaking")
     text: str = Field(description="What the NPC says")
     emotion: str = Field(default="neutral", description="Emotional tone (e.g., 'angry', 'fearful')")
+    gender: str = Field(default="", description="Gender of the NPC speaking")
 
 class CharacterUpdate(BaseModel):
     """One character's mechanical state, for persistence to campaign state.
@@ -91,6 +92,7 @@ class ActionResult(BaseModel):
     party: list[CharacterUpdate] = Field(default_factory=list, description="Per-character HP/conditions AFTER this action; include only characters whose state is known. NEVER invent hp/max_hp")
     requires_roll: bool = Field(default=False, description="True if the next suggested action likely needs a dice roll")
     suggested_actions: list[str] = Field(default_factory=list, description="2-3 concrete next moves the player can choose from")
+    assets: list[Assets] = Field(default_factory=list, description="List of asset file and description for every matching chapter, map, scene, NPC")
 
 
 class NpcResult(BaseModel):
@@ -99,6 +101,7 @@ class NpcResult(BaseModel):
     npc_name: str = Field(default="", description="Name of the NPC speaking")
     dialogue: list[DialogueLine] = Field(default_factory=list, description="Ordered in-character lines, each with speaker, text, and emotion")
     suggested_actions: list[str] = Field(default_factory=list, description="2-3 follow-up actions the player can take")
+    assets: list[Assets] = Field(default_factory=list, description="List of asset file and description for every matching chapter, map, scene, NPC")
 
 
 class CampaignResult(BaseModel):

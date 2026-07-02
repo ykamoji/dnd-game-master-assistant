@@ -198,6 +198,7 @@ def _build_dialogue(dialogue_list: list, DialogueLine):
                 speaker=entry.get("speaker", ""),
                 text=entry.get("text", ""),
                 emotion=entry.get("emotion", ""),
+                gender=entry.get("gender", ""),
             )
         )
     return lines or None
@@ -249,6 +250,8 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
     combat_log = resp.get("combat_log") or []
     math_breakdown = resp.get("math_breakdown") or None
     requires_roll = bool(resp.get("requires_roll"))
+    invocation_id = getattr(callback_context, "invocation_id", None)
+    
     metadata = CampaignMetadata(
         chapter=chapter,
         section=section,
@@ -259,8 +262,10 @@ async def persist_campaign_callback(callback_context: CallbackContext) -> None:
         combat_log=combat_log,
         math_breakdown=math_breakdown,
         requires_roll=requires_roll,
+        invocation_id=invocation_id,
     ) if (chapter or section or assets or gm_notes or next_scene_suggestions
-          or suggested_actions or combat_log or math_breakdown or requires_roll) else None
+          or suggested_actions or combat_log or math_breakdown or requires_roll
+          or invocation_id) else None
 
     # initiative: empty list means "unchanged" -> pass None so the tool carries
     # the previous order forward instead of clobbering it.

@@ -1,19 +1,20 @@
 from google.adk.agents import Agent
 
-from app.agents.config import MODEL, USE_LOCAL_LLM
+from app.agents.config import MODEL, USE_LOCAL_LLM, THINKING_CONFIG
 from app.agents.schemas import GMResponse
 from app.agents.callbacks import make_track_agent_callback, persist_campaign_callback
 
 output_agent = Agent(
     name="output_agent",
     model=MODEL,
+    generate_content_config=THINKING_CONFIG,
     include_contents="none",
     instruction="""You are the D&D Game Master Output Formatter.
 
     Your ONLY job is to merge the active specialist's result into one JSON object matching the GMResponse schema below. Persisting the result to the database happens automatically after you respond — you do not call any tools.
 
     The specialist results below are already JSON objects matching their own schemas (ActionResult / NpcResult / CampaignResult). 
-    Carry their fields THROUGH faithfully — copy combat_log, dialogue, party, assets, chapter, section, etc. as-is; do NOT re-derive, summarize, or invent values. 
+    Carry their fields THROUGH faithfully — ALWAYS copy combat_log, dialogue, party, assets, next_scene_suggestions, suggested_actions, chapter, section, etc. as-is. DO NOT omit them if they are present in the specialist result. Do NOT re-derive, summarize, or invent values. 
     Only the result matching {intent} is populated; ignore the empty ones.
 
     Return ONLY a raw JSON object matching the GMResponse schema below.
@@ -32,7 +33,7 @@ output_agent = Agent(
         "combat_log": [{"action": "str", "target": "str", "roll": "str", "result": "str"}],
         "math_breakdown": "string",
         "npc_name": "string",
-        "dialogue": [{"speaker": "str", "text": "str", "emotion": "str"}],
+        "dialogue": [{"speaker": "str", "text": "str", "emotion": "str", "gender": "str"}],
         "chapter": "string",
         "section": "string",
         "scene_summary": "string",
@@ -49,9 +50,9 @@ output_agent = Agent(
     }
 
     Rules:
-    - For ACTION intent: fill ONLY party, narrative, combat_log, math_breakdown, suggested_actions
-    - For NPC_DIALOGUE intent: fill ONLY narrative, npc_name, dialogue, suggested_actions
-    - For CAMPAIGN intent: fill ONLY narrative, chapter, section, scene_summary, gm_notes, next_scene_suggestions, requires_roll, assets
+    - For ACTION intent: fill ONLY party, narrative, combat_log, math_breakdown, assets, next_scene_suggestions, suggested_actions
+    - For NPC_DIALOGUE intent: fill ONLY narrative, npc_name, dialogue, next_scene_suggestions, suggested_actions, assets
+    - For CAMPAIGN intent: fill ONLY narrative, chapter, section, scene_summary, gm_notes, requires_roll, assets, next_scene_suggestions, suggested_actions
     - ALWAYS include last_agent and tools_fired for observability
     - ALWAYS include suggested_actions (2-3 choices for the player)
     - Set requires_roll=true if the next suggested action likely needs a dice roll

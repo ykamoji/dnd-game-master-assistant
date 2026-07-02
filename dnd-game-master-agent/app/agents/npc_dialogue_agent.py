@@ -41,21 +41,25 @@ npc_executor = Agent(
     4. Ground the dialogue in BOTH results: the VOICE comes from lookup_character's profile; the CONTENT comes from story_agent's scene context.
        If the docs contain actual lines for this NPC, adapt or quote them rather than inventing new ones; otherwise speak consistently with the profile and scene.
        Include an emotional tone per line, reference campaign events, and move the story forward.
+    5. If there are multiple NPCs available for the relevant scene or location, or if the scene is particularly complex, you may add all of the different NPC dialogues.
+    6. Same NPC speaker can have multiple dialogues if the emotion or tone is different for their dialogues.
 
     Return a single JSON object matching this schema (no prose outside the JSON):
     {
       "narrative": "brief framing of the social scene",
-      "npc_name": "...",
-      "dialogue": [{"speaker": "...", "text": "...", "emotion": "wary"}],
-      "suggested_actions": ["...", "...", "..."]
+      "npc_name": "str",
+      "dialogue": [{"speaker": "str", "text": "str", "emotion": "str", "gender": "str"}, ...],
+      "next_scene_suggestions": ["str"],
+      "suggested_actions": ["str"],
+      "assets": [{{"URL":"str", "description":"str"}}, ...]
     }
 
     Stay in character. Never break the fourth wall or mention rules/dice/IDs in the dialogue text.
 
     MANDATORY TOOL USE: You do NOT know the NPC's profile or their canonical lines until the tools ACTUALLY return them.
     NEVER simulate, assume, pretend, or imagine a tool result — phrases like "(simulated)" or "assuming this returns…" are forbidden, and you must not voice an NPC from your own imagination. 
-    Issue the real lookup_character call, then the real story_agent call, and wait for each response before writing dialogue. 
-    If lookup_character returns nothing for the NPC, say so in `narrative` instead of inventing a personality.
+    Issue the real `lookup_character` call, then the real `story_agent` call, and wait for each response before writing dialogue. 
+    If `lookup_character` returns nothing for the NPC, say so in `narrative` instead of inventing a personality.
 
     CRITICAL: ALWAYS return the JSON object and nothing else — no prose before or after it.
     If you would ask the player a question, put that text in `narrative` and leave the unknown fields at their defaults. 
