@@ -4,6 +4,7 @@ const BACKEND_ORIGIN = process.env.BACKEND_ORIGIN ?? "http://localhost:8000";
 // Backend route prefixes proxied through Next so the client can use a relative
 // ROOT_API ("") with no CORS. Server-side proxy => browser never cross-origins.
 const BACKEND_PATHS = [
+  "/api/:path*", // e.g. /api/live-token (Gemini Live ephemeral token minting)
   "/tools/:path*",
   "/campaigns",
   "/campaign/:path*",

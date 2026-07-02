@@ -1,3 +1,5 @@
 allowBuilds:
   '@3d-dice/dice-box': false
+  '@google/genai': false
+  protobufjs: false
   sharp: false
